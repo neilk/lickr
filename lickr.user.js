@@ -19,17 +19,39 @@
 // cheesy flash removal
 // cheesy image reloading
 // will probably need a generic spinner system... eventually.
+// faves:
+//   refactor rsp parser.
+
 
 (function() {
-
+    
+    //------------------------------------------------------------------------
     // constants
-    // http status
+    // http status constants
     OK = 200
     
     // xmlhttprequest readystate
     COMPLETE = 4
     
+    // mine!
+    API_KEY = '13f398c89f8c160c1c1428a8ba704710'
+    
+    // magic numbers: the flash file is larger than the img size by this much, due to 
+    // toolbar and border
+    ps_w_flash_extra = 2
+    ps_h_flash_extra = 28
 
+    // minimum width of toolbar. If flash file is under this value, the width of the 
+    // image cannot be figured out from the flash.
+    ps_w_flash_min = 362 
+     
+
+    
+    // simplified, set in page. 
+    is_owner = photo_hash[ps_photo_id].isOwner;
+  
+    //-------------------------------------------------------------------------
+    // utility functions
 
     function xpath_single_node(context_node, xpath) {
         return  document.evaluate( 
@@ -38,22 +60,26 @@
                 ).singleNodeValue;
     }
     
-
-
-    function do_post( proc_request, url, referer, data ) {
+    function do_req( method, proc_request, url, referer, data ) {
         var req = new XMLHttpRequest();
         req.onreadystatechange = function() { proc_request(req) };
-        req.open('POST', url );
+        req.open(method, url );
 
         if (referer != null) {
             req.setRequestHeader( 'Referer', referer );
         }
         
-        req.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
-        req.send( data );
+        if (data != null) {
+            req.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
+            req.send( data );
+        } else {
+            req.send('');
+        }
+
     }
 
-
+    // --------------------------------------------------------------------------
+    // and now, we begin
 
     
     var swf_td     = xpath_single_node(document, "//td[@class='photoswftd'][1]");
@@ -86,9 +112,15 @@
     photo_img.src = img_url;
     photo_img.style.borderColor = '#000000';
     photo_img.style.borderWidth = 1;
-    // unfortunately, there is no info on the page that gives us the width and height
-    // of the image. The Flash file width is not reliable for narrow images.
-    // we can retrieve this info with the API, but not faster than a reflow anyway.
+    
+    // having real image width and height eliminates dancing at page load
+    // n.b. the toolbar in the flash file forces a minimum width.
+    // under a certain minimum, we can't use that dimension to figure out the orig. img. width
+    if (ps_w_flash > ps_w_flash_min) {
+        photo_img.width = ps_w_flash - ps_w_flash_extra;
+    }
+    photo_img.height = ps_h_flash - ps_h_flash_extra; 
+
     
     div.appendChild(photo_img);
 
@@ -103,7 +135,14 @@
     // XXX should not be there if it's our own picture. How to know?
     if (ps_candownload) {
         button['size'] = document.createElement('a');
-        button['size'].href = 'http://flickr.com/photo_zoom.gne?id=' + ps_photo_id + '&size=m';
+        
+        // swf_zoom() is defined in page, picks the best size (large or original)       
+        button['size'].href = '#';
+        button['size'].onclick = swf_zoom; 
+        
+        // but if that ever stops working, just set .href to :
+        // '/photo_zoom.gne?id=' + ps_photo_id + '&size=m';
+
     } else {
         button['size'] = document.createElement('span');
         button['size'].style.color = '#999999';
@@ -118,14 +157,106 @@
 
     // ---------------------------------------------
     // favorite
-    
-    if (ps_isfav) {
-        button['fave'] = document.createElement('span');
+
+    function response_error(req) {
+        window.alert("Could not understand Flickr's response. Sorry.\n" + req.responseText);
+    }
+
+    function proc_fave_request(req) {
+
+        if (req.readyState != COMPLETE) {
+            return;
+        }
+        
+        if( req.status != OK ) {
+            alert("favoriting request failed!")
+            return;
+        }
+
+        // use exception model here.
+        //alert(req.responseText);
+        // occasionally HTML gets prepended into flickr api responses when things go really wrong.
+        // so maybe we should test for first-child == "rsp" here.
+        rsp = req.responseXML.getElementsByTagName('rsp').item(0);
+        if (rsp == null) {
+            response_error(req);
+            return;
+        }
+            
+        stat = rsp.getAttribute("stat");
+        if (stat == null) {
+            response_error(req);
+            return;
+        }
+  
+        //alert("stat = " + stat);
+        if (stat != 'ok') {
+            if (stat == 'fail') {
+                err_node = rsp.getElementsByTagName('err').item(0);
+                err_msg = err_node.getAttribute("msg");
+                window.alert(err_msg);
+            } else {
+                window.alert("Unknown error status. Response text follows.\n" + req.responseText)
+            }
+            return;
+        }
+        
+        draw_fave();         
+   
+    }
+
+
+    function proc_unfave_request(req) {
+        if (req.readyState != COMPLETE) {
+            return;
+        }
+        
+        if( req.status != OK ) {
+            alert("unfavoriting request failed!")
+            return;
+        }
+        
+        // need to test req with real rsp parser here.
+        draw_unfave();
+    }
+
+
+    function photo_fave() {
+        alert("let's fave");
+       var url = '/services/rest/?api_key=' + API_KEY + '&method=flickr%2Efavorites%2Eadd&photo_id=' + ps_photo_id
+       do_req('GET', proc_fave_request, url, null, null)
+    }
+
+    function photo_unfave() {
+       var url = '/services/rest/?api_key=' + API_KEY + '&method=flickr%2Efavorites%2Eremove&photo_id=' + ps_photo_id
+       do_req('GET', proc_unfave_request, url, null, null)
+    }
+ 
+    function draw_fave() {
+        // alert("draw_fave!")
         button['fave'].style.color = '#ff00ff';
-        button['fave'].appendChild(document.createTextNode('*'));
-    } else {
+        // fave_star.style.visibility = true;
+        button['fave'].onclick = photo_unfave;
+    }
+
+    function draw_unfave() {
+        button['fave'].style.color = '#0066ff';
+        //fave_star.style.visibility = false;
+        button['fave'].onclick = photo_fave;
+    }
+ 
+    if (!is_owner) { 
         button['fave'] = document.createElement('a');
         button['fave'].href = '#';
+        fave_star = document.createTextNode('*')
+        // fave_star.style.visibility = false;
+        button['fave'].appendChild(fave_star);
+
+        if (ps_isfav) {
+            draw_fave();
+        } else {
+            draw_unfave();
+        }
     }
 
    
@@ -144,27 +275,40 @@
             return;
         }
 
-        // update the image in an unbelieveably cheesy way.
-        // is there a method to force reload of an image at the same url? there has to be.
+        // okay it's ROTATED, but now we need to fetch it in a way that does not cause
+        // too much dancing around.
+
+        // we could set the new img height and width manually but then you get annoying
+        // redraws of changed dims without changed src or vice versa. Haven't figured 
+        // out a way to do that cleanly, even using a separate img and onload events.
+        // If we make the browser forget the dims, 
+        // we force a clean reflow when once the new src has loaded.
+        photo_img.removeAttribute('height')
+        photo_img.removeAttribute('width')
+
+        // cheesy random argument added so it does not hit cache.  
         photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
-         
+
     }
 
     function photo_rotate() {
        var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
-       do_post(proc_rotate_request, transform_url, null, post_data)
+       do_req('POST', proc_rotate_request, transform_url, null, post_data)
     }
 
-    button['rota'] = document.createElement('a');
-    button['rota'].href = '#';
-    button['rota'].onclick = photo_rotate;
+    if (is_owner) {    
+        button['rota'] = document.createElement('a');
+        button['rota'].href = '#';
+        button['rota'].onclick = photo_rotate;
+    }
 
 
     // ---------------------------------------------
     // send to group
-    button['sgrp'] = document.createElement('a');
-    button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
-
+    if (is_owner) {
+        button['sgrp'] = document.createElement('a');
+        button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
+    }
 
     // ---------------------------------------------
     
@@ -194,12 +338,15 @@
 
        // oddly this POST appears to return the home page anyway. we bother to do
        // the second GET only to be exactly like the Flickr SWF.
-       do_post(proc_delete_request, photo_url, null, post_data)
+       do_post('POST', proc_delete_request, photo_url, null, post_data)
     }
 
-    button['dele'] = document.createElement('a');
-    button['dele'].href = '#';
-    button['dele'].onclick = photo_delete;
+
+    if (is_owner) {
+        button['dele'] = document.createElement('a');
+        button['dele'].href = '#';
+        button['dele'].onclick = photo_delete;
+    }
 
 
 
