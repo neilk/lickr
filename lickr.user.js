@@ -348,13 +348,20 @@
         text_div.style.position = 'absolute';
         text_div.style.left = note.x + 'px';            
         text_div.style.top = (note.y + note.h + 5) + 'px';
-        text_div.style.background = '#ffffcc';
         text_div.style.padding = '5px';
         text_div.appendChild( document.createTextNode(note.text) );
-        text_div.appendChild( document.createElement('br') );
-        author = document.createElement('i')
-        author.appendChild( document.createTextNode('-- ' + note.authorname) );
-        text_div.appendChild(author);
+       
+        // if the note author is the person who made the note, yellow without signature
+        // alert( 'note.author = ' + note.author + ' ps_nsid = ' + ps_nsid );
+        if (note.author == ps_photo_character_id) {
+            text_div.style.background = '#ffffcc';
+        // notes from other people are green with signature
+        } else {
+            text_div.style.background = '#ccffb0';
+            author = document.createElement('i')
+            author.appendChild( document.createTextNode(' - ' + note.authorname) );
+            text_div.appendChild(author);
+        }
         
         text_div.style.visibility = 'hidden';
         //// this was for when it was relative to the img
@@ -469,10 +476,12 @@
     // ---------------------------------------------
     // blog this    
     // xxx only if logged in! 
-    blog_button = document.createElement('a');
-    blog_button.href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
-    blog_button.appendChild( document.createTextNode('Blog This') );
-    button.push(blog_button);
+    if (global_nsid) { // if logged in
+        blog_button = document.createElement('a');
+        blog_button.href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
+        blog_button.appendChild( document.createTextNode('Blog This') );
+        button.push(blog_button);
+    }
    
 
     // ---------------------------------------------
@@ -554,7 +563,7 @@
     }
 
  
-    if (!is_owner) { 
+    if (!is_owner && global_nsid) { // not owner, but logged in...
         fave_button = document.createElement('a');
         fave_button.href = '#';
         fave_button.appendChild( document.createTextNode('Add to favorites') );
@@ -648,27 +657,26 @@
     // ---------------------------------------------
     // toolbar!
     
-    toolbar_p = photo_div.appendChild(document.createElement('p'));
-    // toolbar_p.className = 'topnavi';
-    toolbar_p.style.color = '#666666';
-    //toolbar_p.style.fontSize = 'smaller';
-    toolbar_p.appendChild( document.createTextNode( 'This Photo: ' ));
     
+    if (button.length > 0) {
+        toolbar_p = photo_div.appendChild(document.createElement('p'));
+        toolbar_p.style.color = '#666666';
+        toolbar_p.appendChild( document.createTextNode( 'This Photo: ' ));
+    
+        for (var i = 0; i < button.length; ++i ) {
+            
+            toolbar_p.appendChild(button[i]);
 
-    for (var i = 0; i < button.length; ++i ) {
-        
-        toolbar_p.appendChild(button[i]);
-
-        if (i+1 < button.length) {
-            bullet = document.createElement('span');
-            // how does one get an entityReference from HTML?
-            bullet.innerHTML = '&bull;';
-            bullet.style.margin = '0em 0.3em 0em 0.3em';
-            bullet.style.color = '#b0b0b0';
-       
-            toolbar_p.appendChild( bullet );
+            if (i+1 < button.length) {
+                bullet = document.createElement('span');
+                // how does one get an entityReference from HTML?
+                bullet.innerHTML = '&bull;';
+                bullet.style.margin = '0em 0.3em 0em 0.3em';
+                bullet.style.color = '#b0b0b0';
+           
+                toolbar_p.appendChild( bullet );
+            }
         }
-
     }
 
 })();
