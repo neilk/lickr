@@ -6,7 +6,7 @@
 // ==UserScript==
 // @name      Lickr
 // @namespace   http://brevity.org/greasemonkey
-// @description   Flickr, without the Flash
+// @description   Interface for Flickr photo pages that does not use Macromedia Flash(tm).
 // @include     http://www.flickr.com/photos/*
 // @include     http://flickr.com/photos/*
 // ==/UserScript=
@@ -14,9 +14,11 @@
 // basic gist:
 // we want to replace the swf with ordinary html imgs, and explicit calls to the Flickr API
 // using javascript or resty things.
-// 
-// the parameters that the swf uses are located in a particular script on the page.
-// we'll extract those and we'll be off to the races.
+
+// XXX tofix
+// cheesy flash removal
+// cheesy image reloading
+// will probably need a generic spinner system... eventually.
 
 (function() {
 
@@ -28,14 +30,7 @@
     COMPLETE = 4
     
 
-    // magic numbers...
-    flash_extra_width  = 2  // for the border
-    flash_extra_height = 20 // for the border + toolbar
 
-
-
-
-    
     function xpath_single_node(context_node, xpath) {
         return  document.evaluate( 
                      xpath,                              
@@ -44,6 +39,19 @@
     }
     
 
+
+    function do_post( proc_request, url, referer, data ) {
+        var req = new XMLHttpRequest();
+        req.onreadystatechange = function() { proc_request(req) };
+        req.open('POST', url );
+
+        if (referer != null) {
+            req.setRequestHeader( 'Referer', referer );
+        }
+        
+        req.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
+        req.send( data );
+    }
 
 
 
@@ -72,24 +80,22 @@
     // the image
     // all the ps_* vars are defined in a script on the photo pages
     
-    var img = document.createElement('img');
-    img_src = 'http://photos' + ps_photo_server + '.flickr.com/' 
+    var photo_img = document.createElement('img');
+    img_url = 'http://photos' + ps_photo_server + '.flickr.com/' 
                    + ps_photo_id + '_' + ps_photo_secret + '.jpg';
-    img.src = img_src;
-    img.style.borderColor = '#000000';
-    img.style.borderWidth = 1;
-
-    // lies! the image can be smaller than minimum toolbar. so we have to 
-    // either count on the browser to size it, or get the info some other way.
-    // img.width = ps_w_flash - flash_extra_width;
-    // img.height = ps_h_flash - flash_extra_height;
+    photo_img.src = img_url;
+    photo_img.style.borderColor = '#000000';
+    photo_img.style.borderWidth = 1;
+    // unfortunately, there is no info on the page that gives us the width and height
+    // of the image. The Flash file width is not reliable for narrow images.
+    // we can retrieve this info with the API, but not faster than a reflow anyway.
     
-	div.appendChild(img);
+    div.appendChild(photo_img);
 
 
     // TOOLBAR
 
-    
+    // ---------------------------------------------
     // sizes
 
     var button = new Object;
@@ -104,14 +110,15 @@
     }
 
 
-    
+    // ---------------------------------------------
     // blog this     
     button['blog'] = document.createElement('a');
     button['blog'].href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
 
 
-
+    // ---------------------------------------------
     // favorite
+    
     if (ps_isfav) {
         button['fave'] = document.createElement('span');
         button['fave'].style.color = '#ff00ff';
@@ -121,72 +128,84 @@
         button['fave'].href = '#';
     }
 
-  
-
-/*
-# rotating essentials.
-
-POST /_chat/settransform.gne HTTP/1.1
-Cookie: cookie_accid=66122; cookie_epass=1e96f616dbeda20c6d50f69af939435b; cookie_session=66122%3A1e96f616dbeda20c6d50f69af939435b; use_master_until=1110799321
-
-we may get the cookie for free, hee hee. 
-
-amount=1&id=6232426&action=rotate&fuckSafari=stupidbu
-
-*/
    
-   function do_post( proc_request, url, referer, data ) {
-		var req = new XMLHttpRequest();
-		req.onreadystatechange = function() { proc_request(req) };
-		req.open('POST', url );
+    // ---------------------------------------------
+    // rotate 
 
-        if (referer != null) {
-		    req.setRequestHeader( 'Referer', referer );
+    transform_url = '/_chat/settransform.gne'
+    
+    function proc_rotate_request(req) {
+        if (req.readyState != COMPLETE) {
+            return;
         }
         
-		req.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
-		req.send( data );
-	}
-    
-    
-    // these procs are spun on lots of events apparently
-    // check for readyState at start.
-    function proc_rotate_request(req) {
-		if (req.readyState != COMPLETE) {
+        if( req.status != OK ) {
+            alert("rotation request failed!")
             return;
         }
 
-		if( req.status != OK ) {
-            alert("rotation request failed!")
-			// indicate failure somehow... others set a flag in a var...
-        }
-
-		// update the image in an unbelieveably cheesy way.
+        // update the image in an unbelieveably cheesy way.
         // is there a method to force reload of an image at the same url? there has to be.
-        img.src = img_src + '?.rand=' + Math.floor(Math.random()*100)
-        //alert("we would update the image now")
-        
-	}
-
-    transform_url = '/_chat/settransform.gne'
-
-    function rotate() {
-       var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
-       post_data += '&fuckSafari=stupidbug' // necessary?
-       
-       do_post(proc_rotate_request, transform_url, null, post_data)
-       
+        photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
+         
     }
 
-    // rotate 
+    function photo_rotate() {
+       var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
+       do_post(proc_rotate_request, transform_url, null, post_data)
+    }
+
     button['rota'] = document.createElement('a');
     button['rota'].href = '#';
-    button['rota'].onclick = rotate;
+    button['rota'].onclick = photo_rotate;
 
+
+    // ---------------------------------------------
     // send to group
     button['sgrp'] = document.createElement('a');
     button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
 
+
+    // ---------------------------------------------
+    
+    function proc_delete_request(req) {
+        if (req.readyState != COMPLETE) {
+            return;
+        }
+        
+        if( req.status != OK ) {
+            alert("deletion request failed!")
+            return;
+        }
+
+        // currently this appears just to redirect us to the home page. without any
+        // special notification about the photo being deleted.
+        // but this is how flickr does it. 
+        document.location.href = '/photos/' + ps_nsid + '/?deleted=' + ps_photo_id
+         
+    }
+
+    function photo_delete() {
+       confirm_delete = confirm("Are you sure you want to delete this photo? (This can not be undone.)")
+       if (confirm_delete == false) return;
+
+       var photo_url = '/photos/' + ps_nsid;
+       var post_data = 'delete=' + ps_photo_id
+
+       // oddly this POST appears to return the home page anyway. we bother to do
+       // the second GET only to be exactly like the Flickr SWF.
+       do_post(proc_delete_request, photo_url, null, post_data)
+    }
+
+    button['dele'] = document.createElement('a');
+    button['dele'].href = '#';
+    button['dele'].onclick = photo_delete;
+
+
+
+    // ---------------------------------------------
+    // toolbar!
+    
     // XXX internationalize?
     var texts = new Object();
     texts['size'] = 'sizes';
@@ -194,7 +213,9 @@ amount=1&id=6232426&action=rotate&fuckSafari=stupidbu
     texts['fave'] = 'favorite';
     texts['sgrp'] = 'send to group';
     texts['rota'] = 'rotate';
+    texts['dele'] = 'delete';
 
+    
     div.appendChild(document.createElement('br'));
     for (var i in button) {
         button[i].appendChild(document.createTextNode(texts[i])); // add the texts to the buttons
@@ -206,3 +227,22 @@ amount=1&id=6232426&action=rotate&fuckSafari=stupidbu
 })();
 
 
+
+/*
+// cheesy spinner code. Can be put inside any of the post-request procs, in the 
+//   if (req.readyState != COMPLETE) { }
+    
+     styles = ['#ff0000', '#ffff00', '#00ff00'];
+     style_idx = 0;
+         alert("not complete, and style_idx = " + style_idx);
+    
+     button['rota'].appendChild( document.createTextNode('.') ); 
+             button['rota'].style.background = styles[style_idx]
+             ++style_idx;
+            if (style_idx > 2) { 
+                style_idx = 0;
+            }
+
+        document.body.style.cursor='progress';
+        document.body.style.cursor='default';
+*/
