@@ -18,12 +18,15 @@
 // XXX tofix
 // cheesy flash removal
 // cheesy image reloading
-// will probably need a generic spinner system... eventually.
-// faves:
-//   refactor rsp parser.
-
+// rotation using flickr api?
+// notes!
+// generic spinners in procs.
+// cursor does not seem to update unless moved.
+// move factory functions inside contexts so they need not be fully parsed...
 
 (function() {
+    
+
     
     //------------------------------------------------------------------------
     // constants
@@ -33,22 +36,20 @@
     // xmlhttprequest readystate
     COMPLETE = 4
     
-    // mine!
-    API_KEY = '13f398c89f8c160c1c1428a8ba704710'
+    // misc
+    API_KEY = '13f398c89f8c160c1c1428a8ba704710';
+    DEBUG = true;
     
     // magic numbers: the flash file is larger than the img size by this much, due to 
     // toolbar and border
     ps_w_flash_extra = 2
     ps_h_flash_extra = 28
 
-    // minimum width of toolbar. If flash file is under this value, the width of the 
-    // image cannot be figured out from the flash.
+    // minimum width of flash file, due to toolbar. 
+    // If flash file is this size, the width of the image cannot be determined
     ps_w_flash_min = 362 
      
 
-    
-    // simplified, set in page. 
-    is_owner = photo_hash[ps_photo_id].isOwner;
   
     //-------------------------------------------------------------------------
     // utility functions
@@ -78,13 +79,114 @@
 
     }
 
+
+    function procException(msg, req) {
+        this.msg = msg
+        this.req = req
+    }
+    
+    // a proc just spins around waiting for the thing to succeed or fail
+    // then calls a callback, if we got 200 OK message.
+    function make_proc(op_name, ok_cb) {
+
+        return function(req) { 
+            
+            try {
+                // init progress
+                document.body.style.cursor='progress';
+                
+                if (req.readyState != COMPLETE) {
+                    return;
+                }
+        
+                if( req.status != OK ) {
+                    throw new procException( op_name + " request status was '" + req.status + "'", req )
+                }
+
+                ok_cb(req);
+                
+            } catch(e) {
+                
+                // clean up progress
+                document.body.style.cursor='default';
+                
+                if (e instanceof procException) {
+                    alert( e.msg );
+                    if (DEBUG) {
+                        alert(e.req.responseText);
+                    }
+                    return;
+                } else {
+                    throw(e);
+                }
+            }
+
+            // clean up progress
+            document.body.style.cursor='default';
+        }
+    }
+
+
+    // this is wraps the spinning proc like above,
+    // except it parses the flickr api response a little before deciding all is well,
+    // and passing control to the all-is-well callback
+    function make_flickr_api_proc(op_name, ok_cb) {
+
+        function parse_and_ok_cb(req) {
+            
+            rsp = req.responseXML.getElementsByTagName('rsp').item(0);
+            if (rsp == null) {
+                throw new procException( "Could not understand Flickr's response.", req );
+            }
+            
+            stat = rsp.getAttribute("stat");
+            if (stat == null) {
+                throw new procException( "Could not find status of Flickr request", req);
+            }
+  
+            if (stat != 'ok') {
+                if (stat == 'fail') {
+                    err_node = rsp.getElementsByTagName('err').item(0);
+                    err_msg = err_node.getAttribute("msg");
+                    throw new procException( err_msg, req );
+                } else {
+                    throw new procException("Unknown error status: '" + stat + "'", req)
+                }
+            }
+
+            // may want to pass rsp as well?
+            ok_cb(req);
+        }
+
+        return make_proc(op_name, parse_and_ok_cb);
+    }
+    
+    
+    // construct a flickr api request, with method and args, 
+    // if that worked, call callback with request object.
+    function flickr_api_call( method, args, ok_cb ) {
+        
+         var url = '/services/rest/?api_key=' + API_KEY;
+         url += '&method=' + encodeURIComponent(method);
+         
+         for (var key in args) {
+             url += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(args[key])
+         }
+         
+         proc = make_flickr_api_proc( method, ok_cb )
+         
+         do_req('GET', proc, url, null, null)
+    }
+
+
+
     // --------------------------------------------------------------------------
     // and now, we begin
 
-    
     var swf_td     = xpath_single_node(document, "//td[@class='photoswftd'][1]");
     if (swf_td == null) { return; }
 
+    
     // XXX this is only useful to find a place to insert the img now... probably a better way
     // why does innerHTML work for that other guy, anyway.
     var swf_script = xpath_single_node(swf_td, "noscript/following-sibling::script[1]"); 
@@ -115,7 +217,7 @@
     
     // having real image width and height eliminates dancing at page load
     // n.b. the toolbar in the flash file forces a minimum width.
-    // under a certain minimum, we can't use that dimension to figure out the orig. img. width
+    // under a certain minimum, we can't determine original image width
     if (ps_w_flash > ps_w_flash_min) {
         photo_img.width = ps_w_flash - ps_w_flash_extra;
     }
@@ -125,14 +227,17 @@
     div.appendChild(photo_img);
 
 
+    // ---------------------------------------------
     // TOOLBAR
+    var button = new Object;
+    
+    // the toolbar changes if this is our photo.
+    is_owner = photo_hash[ps_photo_id].isOwner;
+
 
     // ---------------------------------------------
     // sizes
 
-    var button = new Object;
-
-    // XXX should not be there if it's our own picture. How to know?
     if (ps_candownload) {
         button['size'] = document.createElement('a');
         
@@ -158,98 +263,30 @@
     // ---------------------------------------------
     // favorite
 
-    function response_error(req) {
-        window.alert("Could not understand Flickr's response. Sorry.\n" + req.responseText);
+    function photo_fave() {        
+        flickr_api_call( "flickr.favorites.add", { 'photo_id':ps_photo_id }, draw_fave );
     }
 
-    function proc_fave_request(req) {
-
-        if (req.readyState != COMPLETE) {
-            return;
-        }
-        
-        if( req.status != OK ) {
-            alert("favoriting request failed!")
-            return;
-        }
-
-        // use exception model here.
-        //alert(req.responseText);
-        // occasionally HTML gets prepended into flickr api responses when things go really wrong.
-        // so maybe we should test for first-child == "rsp" here.
-        rsp = req.responseXML.getElementsByTagName('rsp').item(0);
-        if (rsp == null) {
-            response_error(req);
-            return;
-        }
-            
-        stat = rsp.getAttribute("stat");
-        if (stat == null) {
-            response_error(req);
-            return;
-        }
-  
-        //alert("stat = " + stat);
-        if (stat != 'ok') {
-            if (stat == 'fail') {
-                err_node = rsp.getElementsByTagName('err').item(0);
-                err_msg = err_node.getAttribute("msg");
-                window.alert(err_msg);
-            } else {
-                window.alert("Unknown error status. Response text follows.\n" + req.responseText)
-            }
-            return;
-        }
-        
-        draw_fave();         
-   
+    function photo_unfave() {        
+        flickr_api_call( "flickr.favorites.remove", { 'photo_id':ps_photo_id }, draw_unfave );
     }
-
-
-    function proc_unfave_request(req) {
-        if (req.readyState != COMPLETE) {
-            return;
-        }
-        
-        if( req.status != OK ) {
-            alert("unfavoriting request failed!")
-            return;
-        }
-        
-        // need to test req with real rsp parser here.
-        draw_unfave();
-    }
-
-
-    function photo_fave() {
-        alert("let's fave");
-       var url = '/services/rest/?api_key=' + API_KEY + '&method=flickr%2Efavorites%2Eadd&photo_id=' + ps_photo_id
-       do_req('GET', proc_fave_request, url, null, null)
-    }
-
-    function photo_unfave() {
-       var url = '/services/rest/?api_key=' + API_KEY + '&method=flickr%2Efavorites%2Eremove&photo_id=' + ps_photo_id
-       do_req('GET', proc_unfave_request, url, null, null)
-    }
+    
  
     function draw_fave() {
-        // alert("draw_fave!")
         button['fave'].style.color = '#ff00ff';
-        // fave_star.style.visibility = true;
         button['fave'].onclick = photo_unfave;
     }
 
     function draw_unfave() {
         button['fave'].style.color = '#0066ff';
-        //fave_star.style.visibility = false;
         button['fave'].onclick = photo_fave;
     }
+
  
     if (!is_owner) { 
         button['fave'] = document.createElement('a');
         button['fave'].href = '#';
         fave_star = document.createTextNode('*')
-        // fave_star.style.visibility = false;
         button['fave'].appendChild(fave_star);
 
         if (ps_isfav) {
@@ -262,25 +299,11 @@
    
     // ---------------------------------------------
     // rotate 
-
+    // this could also be done with the api now that we have that??
+    
     transform_url = '/_chat/settransform.gne'
     
-    function proc_rotate_request(req) {
-        if (req.readyState != COMPLETE) {
-            return;
-        }
-        
-        if( req.status != OK ) {
-            alert("rotation request failed!")
-            return;
-        }
-
-        // okay it's ROTATED, but now we need to fetch it in a way that does not cause
-        // too much dancing around.
-
-        // we could set the new img height and width manually but then you get annoying
-        // redraws of changed dims without changed src or vice versa. Haven't figured 
-        // out a way to do that cleanly, even using a separate img and onload events.
+    function rotation_ok() {
         // If we make the browser forget the dims, 
         // we force a clean reflow when once the new src has loaded.
         photo_img.removeAttribute('height')
@@ -288,12 +311,12 @@
 
         // cheesy random argument added so it does not hit cache.  
         photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
-
     }
 
     function photo_rotate() {
        var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
-       do_req('POST', proc_rotate_request, transform_url, null, post_data)
+       rotate_proc = make_proc('photo rotation', rotation_ok);
+       do_req('POST', rotate_proc, transform_url, null, post_data)
     }
 
     if (is_owner) {    
@@ -312,22 +335,15 @@
 
     // ---------------------------------------------
     
-    function proc_delete_request(req) {
-        if (req.readyState != COMPLETE) {
-            return;
-        }
-        
-        if( req.status != OK ) {
-            alert("deletion request failed!")
-            return;
-        }
-
+    
+    function delete_ok() {
         // currently this appears just to redirect us to the home page. without any
         // special notification about the photo being deleted.
         // but this is how flickr does it. 
         document.location.href = '/photos/' + ps_nsid + '/?deleted=' + ps_photo_id
-         
     }
+    delete_proc = make_proc('photo deletion', delete_ok)
+
 
     function photo_delete() {
        confirm_delete = confirm("Are you sure you want to delete this photo? (This can not be undone.)")
@@ -338,7 +354,7 @@
 
        // oddly this POST appears to return the home page anyway. we bother to do
        // the second GET only to be exactly like the Flickr SWF.
-       do_post('POST', proc_delete_request, photo_url, null, post_data)
+       do_req('POST', delete_proc, photo_url, null, post_data)
     }
 
 
