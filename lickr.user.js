@@ -16,18 +16,8 @@
 // using javascript or resty things.
 
 // XXX todo
-// on rect mousover, highlight with color?
-
-//  when over a particular rect. hide all on leaving img.
-// notes flash at start: wait until page fully loaded?
 
 // like to have:
-// how to know who am I? parse page? cookie
-// notes are green, and signed, when from people not the owner of the page.
-//   -- may punt on this just have everyone sign it, all the same color.
-// smaller font for notes, and more padding.
-// notes cause a blank line before toolbar.
-// toolbar nicer
 // cheesy flash removal
 // cheesy image reloading
 // generic spinners in procs (?)
@@ -217,6 +207,7 @@
     
     var photo_div = document.createElement('div');
     photo_div.style.position = 'relative';
+    photo_div.style.margin = '5px'; // lines up with other elements better.
 
     // and show the div!
     swf_td.insertBefore(photo_div, swf_script);
@@ -286,31 +277,31 @@
     } 
 
 
-    function draw_note(note, notes_div) {
+    function draw_note(note, notes_span, texts_span) {
         
 
         // defining each note div:
         
-        //  notes_div (visibile or hidden)
+        //  notes_span (visibile or hidden)
         //    highlight_div (behind and outside the rect_div).
         //    rect_div (white square, true boundary)
         //      inner_rect_div (black square)
+        //  texts_span (always in front of every rect)
         //    text_div (visible on mouseover of associated rect).
         //    ...
        
         var highlight_rect_div = document.createElement('div');
-        notes_div.appendChild(highlight_rect_div);
+        notes_span.appendChild(highlight_rect_div);
         
         var rect_div = document.createElement('div');
-        notes_div.appendChild(rect_div);
+        notes_span.appendChild(rect_div);
         
         var inner_rect_div = document.createElement('div');
         rect_div.appendChild(inner_rect_div);
 
         
-
         var text_div = document.createElement('div')
-        notes_div.appendChild(text_div);
+        texts_span.appendChild(text_div);
 
         
         rect_div.addEventListener( "mouseover", show_note( highlight_rect_div, text_div ), false );
@@ -345,7 +336,7 @@
         highlight_rect_div.style.borderColor = '#ffff00';
         highlight_rect_div.style.borderStyle = 'solid';
         highlight_rect_div.style.borderWidth = '2px';
-        highlight_rect_div.style.MozOpacity = 0.5;
+        highlight_rect_div.style.opacity = 0.5; // CSS 3, only newer Mozillas as of 2005.
         highlight_rect_div.style.visibility = 'hidden';
 
         
@@ -388,14 +379,17 @@
     
     function timeout_hide_notes() {
        // alert("timing out!");
-       notes_hider_timeout = setTimeout( visiblizer( [notes_div], false ), 2000 );
+       notes_hider_timeout = setTimeout( visiblizer( [notes_span], false ), 2000 );
     }
 
     
     function notes_ok(req, rsp) {
 
-        notes_div = document.createElement('div');
-        notes_div.id = 'notes';
+        // using spans instead of divs so as not to trigger block element.
+        notes_span = document.createElement('span');
+        notes_span.id = 'notes';
+        texts_span = document.createElement('span');
+        texts_span.id = 'texts';
         
         var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
 
@@ -412,17 +406,18 @@
             note.h = parseInt(node.getAttribute('h'));
             note.text = node.textContent;    
 
-            draw_note(note, notes_div);
+            draw_note(note, notes_span, texts_span);
             
             node = collection.iterateNext();
         }
 
-        photo_div.insertBefore(notes_div,note_insert_point);
+        photo_div.insertBefore(notes_span,note_insert_point);
+        photo_div.insertBefore(texts_span,note_insert_point);
         
-        photo_img.addEventListener( "mouseover", visiblizer( [notes_div], true ), false );
+        photo_img.addEventListener( "mouseover", visiblizer( [notes_span], true ), false );
         photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
          
-        flash_notes(notes_div);
+        flash_notes(notes_span);
     }
     
     function make_notes() {
@@ -433,7 +428,7 @@
     function remake_notes() {
         if (! has_notes ) { return; }
 
-        photo_div.removeChild( notes_div );
+        photo_div.removeChild( notes_span );
         
         // and remake them    
         make_notes();
@@ -447,7 +442,7 @@
 
     // ---------------------------------------------
     // TOOLBAR
-    var button = new Object;
+    var button = new Array();
     
     // the toolbar changes if the user owns the photo
     is_owner = photo_hash[ps_photo_id].isOwner;
@@ -457,66 +452,114 @@
     // sizes
 
     if (ps_candownload) {
-        button['size'] = document.createElement('a');
+        size_button = document.createElement('a');
         
         // swf_zoom() is defined in page, picks the best size (large or original)       
-        button['size'].href = '#';
-        button['size'].onclick = swf_zoom; 
+        size_button.href = '#';
+        size_button.onclick = swf_zoom; 
+        size_button.appendChild( document.createTextNode('Sizes') );
         
         // but if that ever stops working, just set .href to :
         // '/photo_zoom.gne?id=' + ps_photo_id + '&size=m';
+        button.push(size_button);
 
-    } else {
-        button['size'] = document.createElement('span');
-        button['size'].style.color = '#999999';
-    }
+    } 
 
 
     // ---------------------------------------------
     // blog this    
     // xxx only if logged in! 
-    button['blog'] = document.createElement('a');
-    button['blog'].href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
+    blog_button = document.createElement('a');
+    blog_button.href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
+    blog_button.appendChild( document.createTextNode('Blog This') );
+    button.push(blog_button);
    
 
     // ---------------------------------------------
     // send to group
     if (is_owner) {
-        button['sgrp'] = document.createElement('a');
-        button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
+        sgrp_button = document.createElement('a');
+        sgrp_button.href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
+        sgrp_button.appendChild( document.createTextNode('Send to Group') );
+        button.push(sgrp_button);
     }
 
 
     // ---------------------------------------------
     // favorite
     // XXX only if logged in!
+   
+    fave_div = document.createElement('div');
+    fave_div.id = 'fave_star';
+    fave_div.style.cssFloat = 'right';
+    fave_div.style.color = '#ff00ff';
+    fave_div.style.fontSize = '0.8em';
+    fave_div.style.textAlign = 'center';
+    fave_div.style.position = 'relative';
+    fave_div.style.top = '2.5em';
+    fave_div.style.visibility = 'hidden';
+     
+    fave_star = document.createElement('span'); 
+    fave_star.style.fontSize = '4em';
+    fave_star.style.lineHeight = '0px';
+    fave_star.appendChild( document.createTextNode('*'));
+
+    fave_div.appendChild(fave_star)
+    fave_div.appendChild( document.createElement('br') );
+    
+    t_span = document.createElement('span');
+    t_span.appendChild(document.createTextNode('FAVE'));
+    t_span.style.lineHeight = '1em';
+    
+    fave_div.appendChild( t_span );
+            
+    h1  = swf_td.getElementsByTagName('h1').item(0);
+
+    h1_fave = document.createElement('div')
+    h1_fave.style.width = photo_img.width + 7; // to adjust for 7px margin on left.
+    h1_fave.appendChild(fave_div);
+    h1_fave.appendChild(h1);
+        
+    // swf_td.style.position = 'relative';
+    swf_td.insertBefore(h1_fave, photo_div); 
 
     function photo_fave() {        
         flickr_api_call( "flickr.favorites.add", { 'photo_id':ps_photo_id }, draw_fave );
     }
 
     function photo_unfave() {        
-        flickr_api_call( "flickr.favorites.remove", { 'photo_id':ps_photo_id }, draw_unfave );
+        flickr_api_call( "flickr.favorites.remove", {'photo_id':ps_photo_id }, draw_unfave );
     }
-    
- 
+
+
+    var fave_button;
+
     function draw_fave() {
-        button['fave'].style.color = '#ff00ff';
-        button['fave'].onclick = photo_unfave;
+        fave_div.style.visibility = 'visible';
+        // change the text... 
+        fave_button.replaceChild( 
+            document.createTextNode('Remove from favorites'),
+            fave_button.firstChild
+        );
+        fave_button.onclick = photo_unfave;
     }
 
     function draw_unfave() {
-        button['fave'].style.color = '#0066ff';
-        button['fave'].onclick = photo_fave;
+        fave_div.style.visibility = 'hidden';
+        fave_button.replaceChild( 
+            document.createTextNode('Add to favorites'),
+            fave_button.firstChild
+        );
+        fave_button.onclick = photo_fave;
     }
 
  
     if (!is_owner) { 
-        button['fave'] = document.createElement('a');
-        button['fave'].href = '#';
-        fave_star = document.createTextNode('*')
-        button['fave'].appendChild(fave_star);
-
+        fave_button = document.createElement('a');
+        fave_button.href = '#';
+        fave_button.appendChild( document.createTextNode('Add to favorites') );
+        fave_button.onclick = photo_fave;
+        button.push(fave_button)
         if (ps_isfav) {
             draw_fave();
         } else {
@@ -528,7 +571,7 @@
     // ---------------------------------------------
     // rotate 
     // this could also be done with the api now that we have that??
-    
+   
     function rotation_ok() {
         // If we make the browser forget the dims, 
         // we force a clean reflow when once the new src has loaded.
@@ -546,24 +589,26 @@
     }
 
     if (is_owner) {    
-        button['rota'] = document.createElement('a');
-        button['rota'].href = '#';
-        button['rota'].onclick = photo_rotate;
+        rota_button = document.createElement('a');
+        rota_button.href = '#';
+        rota_button.onclick = photo_rotate;
+        rota_button.appendChild( document.createTextNode('Rotate') );
+        button.push(rota_button);
     }
 
 
     // --- notes toolbar -- for ADDING notes.
     
     //if (is_owner) {
-    //    button['note'] = document.createElement('a');
-    //  button['note'].href = '#';
-    //  //button['note'].onclick = photo_draw_notes;
+    //    note_button = document.createElement('a');
+    //  note_button.href = '#';
+    //  //note_button.onclick = photo_draw_notes;
     //}
 
 
 
     // ---------------------------------------------
-    
+   
     
     function delete_ok() {
         // currently this appears just to redirect us to the home page. without any
@@ -588,9 +633,11 @@
 
 
     if (is_owner) {
-        button['dele'] = document.createElement('a');
-        button['dele'].href = '#';
-        button['dele'].onclick = photo_delete;
+        dele_button = document.createElement('a');
+        dele_button.href = '#';
+        dele_button.onclick = photo_delete;
+        dele_button.appendChild( document.createTextNode('Delete') );
+        button.push(dele_button);
     }
 
 
@@ -601,23 +648,27 @@
     // ---------------------------------------------
     // toolbar!
     
-    // XXX internationalize?
-    var texts = new Object();
-    texts['size'] = 'sizes';
-    texts['blog'] = 'blog this'; 
-    texts['fave'] = 'favorite';
-    texts['sgrp'] = 'send to group';
-    texts['rota'] = 'rotate';
-    texts['dele'] = 'delete';
-    texts['note'] = 'add note';
-
+    toolbar_p = photo_div.appendChild(document.createElement('p'));
+    // toolbar_p.className = 'topnavi';
+    toolbar_p.style.color = '#666666';
+    //toolbar_p.style.fontSize = 'smaller';
+    toolbar_p.appendChild( document.createTextNode( 'This Photo: ' ));
     
-    photo_div.appendChild(document.createElement('br'));
-    for (var i in button) {
-        button[i].appendChild(document.createTextNode(texts[i])); // add the texts to the buttons
 
-        photo_div.appendChild(button[i]);
-        photo_div.appendChild( document.createTextNode(' | ') ); // lame, appears after row.
+    for (var i = 0; i < button.length; ++i ) {
+        
+        toolbar_p.appendChild(button[i]);
+
+        if (i+1 < button.length) {
+            bullet = document.createElement('span');
+            // how does one get an entityReference from HTML?
+            bullet.innerHTML = '&bull;';
+            bullet.style.margin = '0em 0.3em 0em 0.3em';
+            bullet.style.color = '#b0b0b0';
+       
+            toolbar_p.appendChild( bullet );
+        }
+
     }
 
 })();
@@ -632,8 +683,8 @@
      style_idx = 0;
          alert("not complete, and style_idx = " + style_idx);
     
-     button['rota'].appendChild( document.createTextNode('.') ); 
-             button['rota'].style.background = styles[style_idx]
+     rota_button.appendChild( document.createTextNode('.') ); 
+             rota_button.style.background = styles[style_idx]
              ++style_idx;
             if (style_idx > 2) { 
                 style_idx = 0;
