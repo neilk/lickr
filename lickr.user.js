@@ -16,8 +16,16 @@
 // using javascript or resty things.
 
 // XXX todo
-// notes basic interactivity.
-// notes flash at start.
+// on rect mousover, highlight with color?
+
+//  when over a particular rect. hide all on leaving img.
+// notes flash at start: wait until page fully loaded?
+
+// like to have:
+// how to know who am I? parse page? cookie
+// notes are green, and signed, when from people not the owner of the page.
+//   -- may punt on this just have everyone sign it, all the same color.
+// smaller font for notes, and more padding.
 // notes cause a blank line before toolbar.
 // toolbar nicer
 // cheesy flash removal
@@ -243,147 +251,178 @@
 
     // draw notes if there are any
     has_notes = (xpath_single_node( document, "//span[@id='noteCount'][1]" ) != null);
+
+    var notes_hider_timeout;
     
 /*<note id="313" author="12037949754@N01"
 			authorname="Bees" x="10" y="10"
 			w="50" h="50">foo</note> */
-    
-    var note_attrs = ['id','author','authorname','x','y','w','h']
-    
-    var notes_div;
+   
+
     
            
     function visiblizer( elm, vis ) {
         return function() {
+            // alert("visiblizer hit");
             for (i in elm) {
                 elm[i].style.visibility = vis ? 'visible' : 'hidden';
             }
         }
     }
-   
-    note_rect = new Array(); // for flashing
+  
+    function show_note(highlight_rect_div, text_div) {
+        return function() {
+            clearTimeout(notes_hider_timeout)
+            text_div.style.visibility = 'visible';
+            highlight_rect_div.style.visibility = 'visible';
+        }
+    } 
      
-    function draw_note(note) {
+    function hide_note(highlight_rect_div, text_div) {
+        return function() {
+            text_div.style.visibility = 'hidden';
+            highlight_rect_div.style.visibility = 'hidden';
+        }
+    } 
+
+
+    function draw_note(note, notes_div) {
+        
 
         // defining each note div:
         
-        //  div
-        //    rect_div (white square)
+        //  notes_div (visibile or hidden)
+        //    highlight_div (behind and outside the rect_div).
+        //    rect_div (white square, true boundary)
         //      inner_rect_div (black square)
-        //    text_div 
-        //  trapper_div (for mouse events, never hidden).
-                    
-        var div = document.createElement('div');
-        notes_div.appendChild(div);
+        //    text_div (visible on mouseover of associated rect).
+        //    ...
+       
+        var highlight_rect_div = document.createElement('div');
+        notes_div.appendChild(highlight_rect_div);
         
         var rect_div = document.createElement('div');
-        div.appendChild(rect_div);
+        notes_div.appendChild(rect_div);
         
         var inner_rect_div = document.createElement('div');
         rect_div.appendChild(inner_rect_div);
 
+        
+
         var text_div = document.createElement('div')
-        div.appendChild(text_div);
+        notes_div.appendChild(text_div);
 
-        var trapper_div = document.createElement('div');
-        notes_div.appendChild(trapper_div);
-
+        
+        rect_div.addEventListener( "mouseover", show_note( highlight_rect_div, text_div ), false );
+        rect_div.addEventListener( "mouseout", hide_note( highlight_rect_div, text_div ), false );
        
         // styling them all...
          
-        div.id = 'note_' + note.id;
-        div.className = 'note';
-        div.style.position = 'absolute';
-        div.style.left = note.x + 'px';            
-        div.style.top = note.y + 'px';
-
-        
         rect_div.className = 'note_rect';
+        rect_div.style.position = 'absolute';
+        rect_div.style.left = note.x + 'px';            
+        rect_div.style.top = note.y + 'px';
         rect_div.style.width = note.w + 'px';
         rect_div.style.height = note.h + 'px';
         rect_div.style.borderColor = '#ffffff';
         rect_div.style.borderStyle = 'solid';
         rect_div.style.borderWidth = '1px';
-        rect_div.style.visibility = 'hidden';
          
-        
         inner_rect_div.className = 'inner_note_rect';
         inner_rect_div.style.width =  (note.w - 2) + 'px';
         inner_rect_div.style.height = (note.h - 2) + 'px';
         inner_rect_div.style.borderColor = '#000000';
         inner_rect_div.style.borderStyle = 'solid';
         inner_rect_div.style.borderWidth = '1px';
+        
+        highlight_rect_div.className = 'highlight_note_rect';
+        highlight_rect_div.style.position = 'absolute';
+        // what if this is negative?
+        highlight_rect_div.style.left = (note.x - 1) + 'px';            
+        highlight_rect_div.style.top = (note.y - 1) + 'px';
+        highlight_rect_div.style.width = (note.w + 1) + 'px';
+        highlight_rect_div.style.height = (note.h + 1) + 'px';
+        highlight_rect_div.style.borderColor = '#ffff00';
+        highlight_rect_div.style.borderStyle = 'solid';
+        highlight_rect_div.style.borderWidth = '2px';
+        highlight_rect_div.style.MozOpacity = 0.5;
+        highlight_rect_div.style.visibility = 'hidden';
 
         
+        // I used to have this inside the same div as the note, which would
+        // have been easier for dragging both -- no absolute position.
+        // but that div blocked other divs... (?)
+        // can it be made to pass-through mouseovers?
         text_div.className = 'note_text';
+        text_div.style.position = 'absolute';
+        text_div.style.left = note.x + 'px';            
+        text_div.style.top = (note.y + note.h + 5) + 'px';
         text_div.style.background = '#ffffcc';
-        text_div.style.marginTop = '3px';
-        text_div.style.padding = '3px';
-        // text_div.style.MozOpacity = '0.6';
-        text_div.appendChild( document.createTextNode( note.text ) );
+        text_div.style.padding = '5px';
+        text_div.appendChild( document.createTextNode(note.text) );
+        text_div.appendChild( document.createElement('br') );
+        author = document.createElement('i')
+        author.appendChild( document.createTextNode('-- ' + note.authorname) );
+        text_div.appendChild(author);
+        
         text_div.style.visibility = 'hidden';
-        // XXX how to know if we aren't the author (appending author name, different note colors.            
+        //// this was for when it was relative to the img
+        //text_div.style.marginTop = '5px';
+        //text_div.style.padding = '5px';
+
+    }
 
 
-
-        trapper_div.className = 'note_trapper';
-        trapper_div.style.position = 'absolute';
-        trapper_div.style.left = note.x + 'px';            
-        trapper_div.style.top = note.y + 'px';
-        trapper_div.style.width =  (note.w - 2) + 'px';
-        trapper_div.style.height = (note.h - 2) + 'px';
-        trapper_div.addEventListener( "mouseover", visiblizer( [rect_div, text_div], true ), false );
-        trapper_div.addEventListener( "mouseout",  visiblizer( [rect_div, text_div], false ), false );
-
-        note_rect.append(rect_div);
+    function flash_notes(notes_div) {
+ //alert("flashing notes " + note_rect.length);
+              
+        notes_div.style.visibility = 'visible';
+        // this can actually go before people see it...
+        // need to have this flash triggered when the page is fully loaded or something.
+        timeout_hide_notes();
+        
     }
     
-    function flash_notes() {
-alert("flashing notes");
-        if (note_rect.length == 0) { return; }
-        
-        for (var i in note_rect) {
-            note_rect[i].visibility = 'visible';
-        }
 
-        for (opac = 1.0; opac >= 0; opac -= 0.2) {
-            for (var i in note_rect) {
-               note_rect[i].MozOpacity = opac;
-            }
-            
-        }
-
-        for (var i in note_rect) {
-            note_rect[i].visibility = 'hidden';
-            note_rect[i].MozOpacity = 1;
-        }
+    // var note_attrs = ['id','author','authorname','x','y','w','h']
+    
+    function timeout_hide_notes() {
+       // alert("timing out!");
+       notes_hider_timeout = setTimeout( visiblizer( [notes_div], false ), 2000 );
     }
+
     
     function notes_ok(req, rsp) {
-
-        var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
-
-        var node = collection.iterateNext();
 
         notes_div = document.createElement('div');
         notes_div.id = 'notes';
         
+        var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
+
+        var node = collection.iterateNext();
         while (node) {
             note = new Object();
-            for (j in note_attrs) {
-                attr = note_attrs[j]
-                note[attr] = node.getAttribute(attr);
-            }
-            note.text = node.textContent;
 
-            draw_note(note);
+            note.id = node.getAttribute('id');
+            note.author = node.getAttribute('author');
+            note.authorname = node.getAttribute('authorname');
+            note.x = parseInt(node.getAttribute('x'));
+            note.y = parseInt(node.getAttribute('y'));
+            note.w = parseInt(node.getAttribute('w'));
+            note.h = parseInt(node.getAttribute('h'));
+            note.text = node.textContent;    
+
+            draw_note(note, notes_div);
             
             node = collection.iterateNext();
         }
 
-        photo_div.insertBefore(notes_div, note_insert_point);
-
-        flash_notes();
+        photo_div.insertBefore(notes_div,note_insert_point);
+        
+        photo_img.addEventListener( "mouseover", visiblizer( [notes_div], true ), false );
+        photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
+         
+        flash_notes(notes_div);
     }
     
     function make_notes() {
