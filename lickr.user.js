@@ -18,7 +18,6 @@
 // XXX tofix
 // cheesy flash removal
 // cheesy image reloading
-// rotation using flickr api?
 // notes!
 // generic spinners in procs.
 // cursor does not seem to update unless moved.
@@ -35,6 +34,10 @@
     
     // xmlhttprequest readystate
     COMPLETE = 4
+
+    // dom
+    // nodeType
+    TEXT_NODE = 3  
     
     // misc
     API_KEY = '13f398c89f8c160c1c1428a8ba704710';
@@ -76,7 +79,7 @@
         } else {
             req.send('');
         }
-
+        
     }
 
 
@@ -84,6 +87,7 @@
         this.msg = msg
         this.req = req
     }
+    
     
     // a proc just spins around waiting for the thing to succeed or fail
     // then calls a callback, if we got 200 OK message.
@@ -98,7 +102,9 @@
                 if (req.readyState != COMPLETE) {
                     return;
                 }
-        
+                
+                //alert(req.responseText);
+                
                 if( req.status != OK ) {
                     throw new procException( op_name + " request status was '" + req.status + "'", req )
                 }
@@ -115,13 +121,13 @@
                     if (DEBUG) {
                         alert(e.req.responseText);
                     }
-                    return;
                 } else {
                     throw(e);
                 }
             }
 
             // clean up progress
+
             document.body.style.cursor='default';
         }
     }
@@ -133,7 +139,6 @@
     function make_flickr_api_proc(op_name, ok_cb) {
 
         function parse_and_ok_cb(req) {
-            
             rsp = req.responseXML.getElementsByTagName('rsp').item(0);
             if (rsp == null) {
                 throw new procException( "Could not understand Flickr's response.", req );
@@ -154,8 +159,7 @@
                 }
             }
 
-            // may want to pass rsp as well?
-            ok_cb(req);
+            ok_cb(req, rsp);
         }
 
         return make_proc(op_name, parse_and_ok_cb);
@@ -200,10 +204,11 @@
     
     // okay let's get inserting
     
-    var div = document.createElement('div');
+    var photo_div = document.createElement('div');
+    photo_div.style.position = 'relative';
 
     // and show the div!
-    swf_td.insertBefore(div, swf_script);
+    swf_td.insertBefore(photo_div, swf_script);
 
     // the image
     // all the ps_* vars are defined in a script on the photo pages
@@ -224,14 +229,116 @@
     photo_img.height = ps_h_flash - ps_h_flash_extra; 
 
     
-    div.appendChild(photo_img);
+    photo_div.appendChild(photo_img);
+    
+    note_insert_point = document.createElement('span');
+    photo_div.appendChild(note_insert_point);
 
+
+    // ---------------------------------------------
+    // notes
+
+    // draw notes if there are any
+    has_notes = (xpath_single_node( document, "//span[@id='noteCount'][1]" ) != null);
+    
+/*<note id="313" author="12037949754@N01"
+			authorname="Bees" x="10" y="10"
+			w="50" h="50">foo</note> */
+    
+    var note_attrs = ['id','author','authorname','x','y','w','h']
+    
+    var notes_div;
+    
+    function notes_ok(req, rsp) {
+
+        var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
+
+        var node = collection.iterateNext();
+
+        notes_div = document.createElement('div');
+        notes_div.id = 'notes';
+        
+        while (node) {
+            note = new Object();
+            for (j in note_attrs) {
+                attr = note_attrs[j]
+                note[attr] = node.getAttribute(attr);
+            }
+            note.text = node.textContent;
+            
+            var div = document.createElement('div');
+            div.id = 'note_' + note.id;
+            div.className = 'note';
+            div.style.position = 'absolute';
+            div.style.left = note.x + 'px';            
+            div.style.top = note.y + 'px';
+
+            notes_div.appendChild(div);
+            
+            var rect_div = document.createElement('div');
+            rect_div.className = 'note_rect';
+            rect_div.style.width = note.w + 'px';
+            rect_div.style.height = note.h + 'px';
+            rect_div.style.borderColor = '#ffffff';
+            rect_div.style.borderStyle = 'solid';
+            rect_div.style.borderWidth = '1px';
+             
+            div.appendChild(rect_div);
+
+            var inner_rect_div = document.createElement('div');
+            inner_rect_div.className = 'inner_note_rect';
+            inner_rect_div.style.width =  (note.w - 2) + 'px';
+            inner_rect_div.style.height = (note.h - 2) + 'px';
+            inner_rect_div.style.borderColor = '#000000';
+            inner_rect_div.style.borderStyle = 'solid';
+            inner_rect_div.style.borderWidth = '1px';
+            // inner_rect_div.style.padding = '3px';
+            // inner_rect_div.style.margin = '1px';
+            
+            rect_div.appendChild(inner_rect_div);
+
+            var text_div = document.createElement('div')
+            text_div.className = 'note_text';
+            text_div.style.background = '#ffffcc';
+            text_div.style.marginTop = '3px';
+            text_div.style.padding = '3px';
+            // text_div.style.MozOpacity = '0.6';
+            text_div.appendChild( document.createTextNode( note.text ) );
+            // XXX how to know if we aren't the author (appending author name, different note color )?
+
+            div.appendChild(text_div);
+            
+            node = collection.iterateNext();
+        }
+
+        photo_div.insertBefore(notes_div, note_insert_point);
+    }
+    
+    function make_notes() {
+        flickr_api_call( "flickr.photos.getInfo", { 'photo_id':ps_photo_id }, notes_ok );
+    }
+    
+    // if redrawing the screen, as in rotating...
+    function remake_notes() {
+        if (! has_notes ) { return; }
+
+        photo_div.removeChild( notes_div );
+        
+        // and remake them    
+        make_notes();
+    }
+        
+    if ( has_notes ) {
+        make_notes();
+    }
+
+    
 
     // ---------------------------------------------
     // TOOLBAR
     var button = new Object;
     
-    // the toolbar changes if this is our photo.
+    // the toolbar changes if the user owns the photo
     is_owner = photo_hash[ps_photo_id].isOwner;
 
 
@@ -255,13 +362,23 @@
 
 
     // ---------------------------------------------
-    // blog this     
+    // blog this    
+    // xxx only if logged in! 
     button['blog'] = document.createElement('a');
     button['blog'].href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
+   
+
+    // ---------------------------------------------
+    // send to group
+    if (is_owner) {
+        button['sgrp'] = document.createElement('a');
+        button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
+    }
 
 
     // ---------------------------------------------
     // favorite
+    // XXX only if logged in!
 
     function photo_fave() {        
         flickr_api_call( "flickr.favorites.add", { 'photo_id':ps_photo_id }, draw_fave );
@@ -301,8 +418,6 @@
     // rotate 
     // this could also be done with the api now that we have that??
     
-    transform_url = '/_chat/settransform.gne'
-    
     function rotation_ok() {
         // If we make the browser forget the dims, 
         // we force a clean reflow when once the new src has loaded.
@@ -311,12 +426,12 @@
 
         // cheesy random argument added so it does not hit cache.  
         photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
+
+        remake_notes();
     }
 
     function photo_rotate() {
-       var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
-       rotate_proc = make_proc('photo rotation', rotation_ok);
-       do_req('POST', rotate_proc, transform_url, null, post_data)
+        flickr_api_call( "flickr.photos.transform.rotate", { 'photo_id':ps_photo_id, 'degrees':90 }, rotation_ok );
     }
 
     if (is_owner) {    
@@ -326,12 +441,15 @@
     }
 
 
-    // ---------------------------------------------
-    // send to group
-    if (is_owner) {
-        button['sgrp'] = document.createElement('a');
-        button['sgrp'].href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
-    }
+    // --- notes toolbar -- for ADDING notes.
+    
+    //if (is_owner) {
+    //    button['note'] = document.createElement('a');
+    //  button['note'].href = '#';
+    //  //button['note'].onclick = photo_draw_notes;
+    //}
+
+
 
     // ---------------------------------------------
     
@@ -366,6 +484,9 @@
 
 
 
+
+
+
     // ---------------------------------------------
     // toolbar!
     
@@ -377,14 +498,15 @@
     texts['sgrp'] = 'send to group';
     texts['rota'] = 'rotate';
     texts['dele'] = 'delete';
+    texts['note'] = 'add note';
 
     
-    div.appendChild(document.createElement('br'));
+    photo_div.appendChild(document.createElement('br'));
     for (var i in button) {
         button[i].appendChild(document.createTextNode(texts[i])); // add the texts to the buttons
 
-        div.appendChild(button[i]);
-        div.appendChild( document.createTextNode(' | ') ); // lame, appears after row.
+        photo_div.appendChild(button[i]);
+        photo_div.appendChild( document.createTextNode(' | ') ); // lame, appears after row.
     }
 
 })();
@@ -409,3 +531,11 @@
         document.body.style.cursor='progress';
         document.body.style.cursor='default';
 */
+
+
+    // // another way to transform...
+    // transform_url = '/_chat/settransform.gne'
+    // var post_data = 'amount=1&id=' + ps_photo_id + '&action=rotate'
+    // rotate_proc = make_proc('photo rotation', rotation_ok);
+    // do_req('POST', rotate_proc, transform_url, null, post_data)
+
