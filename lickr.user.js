@@ -15,11 +15,14 @@
 // we want to replace the swf with ordinary html imgs, and explicit calls to the Flickr API
 // using javascript or resty things.
 
-// XXX tofix
+// XXX todo
+// notes basic interactivity.
+// notes flash at start.
+// notes cause a blank line before toolbar.
+// toolbar nicer
 // cheesy flash removal
 // cheesy image reloading
-// notes!
-// generic spinners in procs.
+// generic spinners in procs (?)
 // cursor does not seem to update unless moved.
 // move factory functions inside contexts so they need not be fully parsed...
 
@@ -249,6 +252,113 @@
     
     var notes_div;
     
+           
+    function visiblizer( elm, vis ) {
+        return function() {
+            for (i in elm) {
+                elm[i].style.visibility = vis ? 'visible' : 'hidden';
+            }
+        }
+    }
+   
+    note_rect = new Array(); // for flashing
+     
+    function draw_note(note) {
+
+        // defining each note div:
+        
+        //  div
+        //    rect_div (white square)
+        //      inner_rect_div (black square)
+        //    text_div 
+        //  trapper_div (for mouse events, never hidden).
+                    
+        var div = document.createElement('div');
+        notes_div.appendChild(div);
+        
+        var rect_div = document.createElement('div');
+        div.appendChild(rect_div);
+        
+        var inner_rect_div = document.createElement('div');
+        rect_div.appendChild(inner_rect_div);
+
+        var text_div = document.createElement('div')
+        div.appendChild(text_div);
+
+        var trapper_div = document.createElement('div');
+        notes_div.appendChild(trapper_div);
+
+       
+        // styling them all...
+         
+        div.id = 'note_' + note.id;
+        div.className = 'note';
+        div.style.position = 'absolute';
+        div.style.left = note.x + 'px';            
+        div.style.top = note.y + 'px';
+
+        
+        rect_div.className = 'note_rect';
+        rect_div.style.width = note.w + 'px';
+        rect_div.style.height = note.h + 'px';
+        rect_div.style.borderColor = '#ffffff';
+        rect_div.style.borderStyle = 'solid';
+        rect_div.style.borderWidth = '1px';
+        rect_div.style.visibility = 'hidden';
+         
+        
+        inner_rect_div.className = 'inner_note_rect';
+        inner_rect_div.style.width =  (note.w - 2) + 'px';
+        inner_rect_div.style.height = (note.h - 2) + 'px';
+        inner_rect_div.style.borderColor = '#000000';
+        inner_rect_div.style.borderStyle = 'solid';
+        inner_rect_div.style.borderWidth = '1px';
+
+        
+        text_div.className = 'note_text';
+        text_div.style.background = '#ffffcc';
+        text_div.style.marginTop = '3px';
+        text_div.style.padding = '3px';
+        // text_div.style.MozOpacity = '0.6';
+        text_div.appendChild( document.createTextNode( note.text ) );
+        text_div.style.visibility = 'hidden';
+        // XXX how to know if we aren't the author (appending author name, different note colors.            
+
+
+
+        trapper_div.className = 'note_trapper';
+        trapper_div.style.position = 'absolute';
+        trapper_div.style.left = note.x + 'px';            
+        trapper_div.style.top = note.y + 'px';
+        trapper_div.style.width =  (note.w - 2) + 'px';
+        trapper_div.style.height = (note.h - 2) + 'px';
+        trapper_div.addEventListener( "mouseover", visiblizer( [rect_div, text_div], true ), false );
+        trapper_div.addEventListener( "mouseout",  visiblizer( [rect_div, text_div], false ), false );
+
+        note_rect.append(rect_div);
+    }
+    
+    function flash_notes() {
+alert("flashing notes");
+        if (note_rect.length == 0) { return; }
+        
+        for (var i in note_rect) {
+            note_rect[i].visibility = 'visible';
+        }
+
+        for (opac = 1.0; opac >= 0; opac -= 0.2) {
+            for (var i in note_rect) {
+               note_rect[i].MozOpacity = opac;
+            }
+            
+        }
+
+        for (var i in note_rect) {
+            note_rect[i].visibility = 'hidden';
+            note_rect[i].MozOpacity = 1;
+        }
+    }
+    
     function notes_ok(req, rsp) {
 
         var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
@@ -265,53 +375,15 @@
                 note[attr] = node.getAttribute(attr);
             }
             note.text = node.textContent;
-            
-            var div = document.createElement('div');
-            div.id = 'note_' + note.id;
-            div.className = 'note';
-            div.style.position = 'absolute';
-            div.style.left = note.x + 'px';            
-            div.style.top = note.y + 'px';
 
-            notes_div.appendChild(div);
-            
-            var rect_div = document.createElement('div');
-            rect_div.className = 'note_rect';
-            rect_div.style.width = note.w + 'px';
-            rect_div.style.height = note.h + 'px';
-            rect_div.style.borderColor = '#ffffff';
-            rect_div.style.borderStyle = 'solid';
-            rect_div.style.borderWidth = '1px';
-             
-            div.appendChild(rect_div);
-
-            var inner_rect_div = document.createElement('div');
-            inner_rect_div.className = 'inner_note_rect';
-            inner_rect_div.style.width =  (note.w - 2) + 'px';
-            inner_rect_div.style.height = (note.h - 2) + 'px';
-            inner_rect_div.style.borderColor = '#000000';
-            inner_rect_div.style.borderStyle = 'solid';
-            inner_rect_div.style.borderWidth = '1px';
-            // inner_rect_div.style.padding = '3px';
-            // inner_rect_div.style.margin = '1px';
-            
-            rect_div.appendChild(inner_rect_div);
-
-            var text_div = document.createElement('div')
-            text_div.className = 'note_text';
-            text_div.style.background = '#ffffcc';
-            text_div.style.marginTop = '3px';
-            text_div.style.padding = '3px';
-            // text_div.style.MozOpacity = '0.6';
-            text_div.appendChild( document.createTextNode( note.text ) );
-            // XXX how to know if we aren't the author (appending author name, different note color )?
-
-            div.appendChild(text_div);
+            draw_note(note);
             
             node = collection.iterateNext();
         }
 
         photo_div.insertBefore(notes_div, note_insert_point);
+
+        flash_notes();
     }
     
     function make_notes() {
