@@ -315,24 +315,24 @@
         rect_div.style.top = note.y + 'px';
         rect_div.style.width = note.w + 'px';
         rect_div.style.height = note.h + 'px';
-        rect_div.style.borderColor = '#ffffff';
+        rect_div.style.borderColor = '#000000';
         rect_div.style.borderStyle = 'solid';
         rect_div.style.borderWidth = '1px';
          
         inner_rect_div.className = 'inner_note_rect';
         inner_rect_div.style.width =  (note.w - 2) + 'px';
         inner_rect_div.style.height = (note.h - 2) + 'px';
-        inner_rect_div.style.borderColor = '#000000';
+        inner_rect_div.style.borderColor = '#ffffff';
         inner_rect_div.style.borderStyle = 'solid';
         inner_rect_div.style.borderWidth = '1px';
         
         highlight_rect_div.className = 'highlight_note_rect';
         highlight_rect_div.style.position = 'absolute';
         // what if this is negative?
-        highlight_rect_div.style.left = (note.x - 1) + 'px';            
-        highlight_rect_div.style.top = (note.y - 1) + 'px';
-        highlight_rect_div.style.width = (note.w + 1) + 'px';
-        highlight_rect_div.style.height = (note.h + 1) + 'px';
+        highlight_rect_div.style.left = (note.x - 2) + 'px';            
+        highlight_rect_div.style.top = (note.y - 2) + 'px';
+        highlight_rect_div.style.width = (note.w + 2) + 'px';
+        highlight_rect_div.style.height = (note.h + 2) + 'px';
         highlight_rect_div.style.borderColor = '#ffff00';
         highlight_rect_div.style.borderStyle = 'solid';
         highlight_rect_div.style.borderWidth = '2px';
@@ -354,12 +354,13 @@
         // if the note author is the person who made the note, yellow without signature
         // alert( 'note.author = ' + note.author + ' ps_nsid = ' + ps_nsid );
         if (note.author == ps_photo_character_id) {
-            text_div.style.background = '#ffffcc';
+            text_div.style.background = '#fff9cc';
         // notes from other people are green with signature
         } else {
             text_div.style.background = '#ccffb0';
             author = document.createElement('i')
-            author.appendChild( document.createTextNode(' - ' + note.authorname) );
+            // only way to get entities is to use innerHTML, apparently.
+            author.innerHTML = ' &ndash;&nbsp;' + note.authorname;
             text_div.appendChild(author);
         }
         
