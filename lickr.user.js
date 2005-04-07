@@ -16,17 +16,39 @@
 // using javascript or resty things.
 
 // XXX todo
-// notes dragging 
+// notes dragging
+// whoops, highlight divs are in the wrong place now.
+// figure out the inner/outer controversy.
+//   we need to draw a grey line. (or do we? what if we just left it as is, black/white border?)
+//   when dragging, we need to move two divs simultaneously to get the white-black border effect.
+//   two ways to do that:
+//   drag outer object, inner comes along automatically.
+//      cannot define an object as inner or outer and have it share same dims (or can I??)
+//   drag inner object, defined drag applying to outer black.
+//      good for dragging all, just hide and show.
+//      this is fine, but implies a note div, which caused problems before. Can we have a div that is
+//      "transparent" to mouseclicks? I don't think so.
+//   manually move both absolutely-positioned divs.
+//      
+//   would rather hide/show/move manually. it's not THAT hard.
+//   
+
+// a) keep the same old inner/outer rect
+//    move highlight rect in, color white?
+//  
 // notes resizing
 // note-editing styling 
 //   - textarea
+//   - save the newlines? <pre>?
 //   - buttons
 //   - buttons in their own div, just near the note?
 // adding notes
 // can you edit notes other people post? (probably not...)
 
-// check if img size calculation is correct. (horiz appears to be off by a few pixels).
-// maybe it would be simpler to use API to get sizes.
+// may it would be simpler to use API to get sizes.
+
+// innerHTML --> unescape.
+// some closure-izers are not necessary, I just didn't understand scoping.
 
 // license
 
@@ -41,7 +63,6 @@
 (function() {
     
 
-    
     //------------------------------------------------------------------------
     // constants
     // http status constants
@@ -215,12 +236,12 @@
     // ideally we should prevent the Flash object from ever being added to the DOM, but
     // no one yet knows how to prevent an inline JS from running.
     var swf = xpath_single_node(swf_td, "//object[1]").parentNode;
-    swf_td.removeChild(swf)
+    swf_td.removeChild(swf);
     
     // okay let's get inserting
     
     var photo_div = document.createElement('div');
-    photo_div.style.position = 'relative';
+    photo_div.style.position = 'relative';  // what does this do??
     photo_div.style.margin = '5px'; // lines up with other elements better.
 
     // and show the div!
@@ -237,6 +258,9 @@
     // n.b. the toolbar in the flash file forces a minimum width, so we can't know the true width of
     // narrow photos. The following is a compromise that generally produces the least dancing
     // of title and image, given this imperfect information.
+    // we could use Flickr API to get the real width, but the problem there is that the API
+    // call is async. We can't wait on it, not without rewriting everything. So the page would
+    // proceed merrily along, and actually look worse (title element gets smushed into small space).
     if (ps_w_flash > ps_w_flash_min) {
         photo_img.width = ps_w_flash - ps_w_flash_extra;
     }
@@ -255,9 +279,99 @@
     // ---------------------------------------------
     // notes
 
-/*<note id="313" author="12037949754@N01"
+    /*<note id="313" author="12037949754@N01"
 			authorname="Bees" x="10" y="10"
 			w="50" h="50">foo</note> */
+ 
+
+/* --------------- DOM-DRAG ----------------------- */
+// Aaron Boodman.
+// move within Note object thingy.
+var Drag = {
+
+	obj : null,
+
+	init : function(o, set_bounding, onDragStart, onDrag, onDragEnd)
+	{
+        o.onmousedown	= Drag.start;
+
+        o.set_bounding = set_bounding;
+        
+
+        // loop?
+        o.onDragStart =  (onDragStart != null) ? onDragStart : function(){};
+        o.onDrag =       (onDrag      != null) ? onDrag      : function(){};
+        o.onDragEnd =    (onDragEnd   != null) ? onDragEnd   : function(){};
+	},
+
+	start : function(e)
+	{
+		var o = Drag.obj = this;
+		var y = parseInt(o.style.top);
+		var x = parseInt(o.style.left);
+       
+        // this could be set for all of them, after a successful drag, instead. 
+        bounds = o.set_bounding();
+        o.minX = bounds[0];
+        o.maxX = bounds[1];
+        o.minY = bounds[2];
+        o.maxY = bounds[3];
+		
+        o.onDragStart(x, y);
+
+		o.lastMouseX	= e.clientX;
+		o.lastMouseY	= e.clientY;
+	    o.minMouseX	= e.clientX - x + o.minX;
+		o.maxMouseX	= o.minMouseX + o.maxX - o.minX;
+		o.minMouseY	= e.clientY - y + o.minY;
+        o.maxMouseY	= o.minMouseY + o.maxY - o.minY;
+
+		document.onmousemove	= Drag.drag;
+		document.onmouseup		= Drag.end;
+
+		return false;
+	},
+
+	drag : function(e)
+	{
+		var o = Drag.obj;
+
+		var ey	= e.clientY;
+		var ex	= e.clientX;
+		var y = parseInt(o.style.top);
+		var x = parseInt(o.style.left);
+		var nx, ny;
+
+		ex = Math.max(ex, o.minMouseX);
+		ex = Math.min(ex, o.maxMouseX);
+		ey = Math.max(ey, o.minMouseY);
+		ey = Math.min(ey, o.maxMouseY);
+
+		nx = x + ex - o.lastMouseX;
+		ny = y + ey - o.lastMouseY;
+
+		Drag.obj.style.left = nx + "px";
+		Drag.obj.style.top = ny + "px";
+		Drag.obj.lastMouseX	= ex;
+		Drag.obj.lastMouseY	= ey;
+
+		Drag.obj.onDrag(nx, ny);
+		return false;
+	},
+
+	end : function()
+	{
+		document.onmousemove = null;
+		document.onmouseup   = null;
+		Drag.obj.onDragEnd(	parseInt(Drag.obj.style.left), 
+									parseInt(Drag.obj.style.top)   );
+		Drag.obj = null;
+	},
+
+};
+
+
+/* --------------- end DOM-DRAG ----------------------- */
         
     var Notes = new Array();    
 
@@ -273,7 +387,6 @@
     var notes_span;
     var texts_span;
 
-    var notes_hider_timeout;
 
     function flash_notes() {             
         notes_span.style.visibility = 'visible';
@@ -283,43 +396,37 @@
     }
     
 
+    var notes_hider_timeout;
+
     function timeout_hide_notes() {
        // alert("timing out!");
+       if (notes_hider_timeout != null) {
+            clearTimeout(notes_hider_timeout);
+       }
        notes_hider_timeout = setTimeout( visiblizer( notes_span, false ), 2000 );
     }
 
-
-   
-   
-   
-   
-   
-   
-   
-    // dshfsdkfhsfskhsd();  line 354: add 54  
    
    
     function remake_notes() {}; // forward declaration (??); 
+   
     
-    function Note(node) {
-
-        this.id = node.getAttribute('id');
-        this.author = node.getAttribute('author');
-        this.authorname = node.getAttribute('authorname');
-        this.x = parseInt(node.getAttribute('x'));
-        this.y = parseInt(node.getAttribute('y'));
-        this.w = parseInt(node.getAttribute('w'));
-        this.h = parseInt(node.getAttribute('h'));
-        this.text = node.textContent;    
-
+    function Note(n) {
+        for (var prop in n) {
+            this[prop] = n[prop];
+        }
+        
         Notes.push(this);
 
+        this.x2 = this.x + this.w; 
+        this.y2 = this.y + this.h;
+        
         // defining each note div:
         
         //  notes_span (visible or hidden)
-        //    highlight_div (yellow)                           }
+        //   highlight_div (yellow)                           }
+        //   this.inner_rect_div (black square)                  }
         //   this.rect_div (white square, true boundary)           }  for each note
-        //     this.inner_rect_div (black square)                  }
         //    ...
         //  texts_span (always in front of every rect)
         //   this.text_div (visible on mouseover of associated rect). } for each note
@@ -327,12 +434,12 @@
        
         this.highlight_rect_div = document.createElement('div');
         notes_span.appendChild(this.highlight_rect_div);
-        
+
         this.rect_div = document.createElement('div');
         notes_span.appendChild(this.rect_div);
         
         this.inner_rect_div = document.createElement('div');
-        this.rect_div.appendChild(this.inner_rect_div);
+        notes_span.appendChild(this.inner_rect_div);
 
         this.text_div = document.createElement('div');
         texts_span.appendChild(this.text_div);
@@ -348,15 +455,23 @@
         this.rect_div.style.borderColor = '#000000';
         this.rect_div.style.borderStyle = 'solid';
         this.rect_div.style.borderWidth = '1px';
-         
-        this.inner_rect_div.style.width =  (this.w - 2) + 'px';
+ /*        
+        this.inner_rect_div.style.position = 'relative';
+        this.inner_rect_div.style.width = (this.w - 2) + 'px';
         this.inner_rect_div.style.height = (this.h - 2) + 'px';
+ */
+        this.inner_rect_div.style.position = 'absolute';
+        this.inner_rect_div.style.left = (this.x + 1) + 'px';            
+        this.inner_rect_div.style.top = (this.y + 1) + 'px'
+        this.inner_rect_div.style.width = (this.w - 2) + 'px';
+        this.inner_rect_div.style.height = (this.h - 2) + 'px';
+ 
         this.inner_rect_div.style.borderColor = '#ffffff';
         this.inner_rect_div.style.borderStyle = 'solid';
         this.inner_rect_div.style.borderWidth = '1px';
         
-        this.highlight_rect_div.style.position = 'absolute';
         // XXX what if this is negative?
+        this.highlight_rect_div.style.position = 'absolute';
         this.highlight_rect_div.style.left = (this.x - 2) + 'px';            
         this.highlight_rect_div.style.top = (this.y - 2) + 'px';
         this.highlight_rect_div.style.width = (this.w + 2) + 'px';
@@ -381,10 +496,12 @@
         // notes from other people are green with signature
         } else {
            this.text_div.style.background = '#ccffb0';
-            var author = document.createElement('i')
-            // only way to get entities is to use innerHTML, apparently.
-            author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
-           this.text_div.appendChild(author);
+           if (this.id) { // if it was retrieved, not a new one we're creating
+                var author = document.createElement('i')
+                // only way to get entities is to use innerHTML, apparently. use UNESCAPE!!
+                author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
+                this.text_div.appendChild(author);
+           }
         }
         
         this.text_div.style.visibility = 'hidden';
@@ -404,29 +521,48 @@
         }
 
 
-        this.rect_div.addEventListener( "mouseover", this.show, false );
-        this.rect_div.addEventListener( "mouseout", this.hide, false );
+        this.inner_rect_div.addEventListener( "mouseover", this.show, false );
+        this.inner_rect_div.addEventListener( "mouseout", this.hide, false );
 
 
         this.save = function() {
-            // gather all changed params.
+            // gather all changed params. 
+            // Or? assume dims have been updated already, since mouse event must have happened.?
             // XXX note.x
             // XXX note.y
             // XXX note.w
             // XXX note.h
             note.text = note.textarea.value; 
-            
-            flickr_api_call( 
-                "flickr.photos.notes.edit", 
-                { 
-                  'note_id'   : note.id,
-                  'note_x'    : note.x,
-                  'note_y'    : note.y,
-                  'note_w'    : note.w,
-                  'note_h'    : note.h,
-                  'note_text' : note.text
-                }, 
-                remake_notes );
+           
+            if (note.id != null) {
+                 
+                flickr_api_call( 
+                    "flickr.photos.notes.edit", 
+                    { 
+                        'note_id'   : note.id,
+                        'note_x'    : note.x,
+                        'note_y'    : note.y,
+                        'note_w'    : note.w,
+                        'note_h'    : note.h,
+                        'note_text' : note.text
+                    }, 
+                    remake_notes 
+                );
+            } else {
+
+                flickr_api_call(
+                    "flickr.photos.notes.add",
+                    {
+                        'photo_id'  : ps_photo_id,
+                        'note_x'    : note.x,
+                        'note_y'    : note.y,
+                        'note_w'    : note.w,
+                        'note_h'    : note.h,
+                        'note_text' : note.text
+                    },
+                    remake_notes
+                );
+            }
             
         }
 
@@ -435,16 +571,31 @@
             flickr_api_call( "flickr.photos.notes.delete", { 'note_id' : note.id }, remake_notes );
         }
 
+        this.resizeBegin = function() { 
+            note.text_div.style.visibility = 'hidden';
+        }
+
+        this.resizeEnd = function() {
+            // store new dims in the object.
+            note.x = parseInt(note.rect_div.style.left);
+            note.y = parseInt(note.rect_div.style.top);
+            note.w = parseInt(note.rect_div.style.width);
+            note.h = parseInt(note.rect_div.style.height);
+
+            // and move the note div back.
+            note.text_div.style.left = note.x + 'px';
+            note.text_div.style.top = (note.y + note.h + 5) + 'px';
+            note.text_div.style.visibility = 'visible';
+        }
 
         this.edit = function() {
-//alert("edit!");
             // this note becomes "modal"... 
             // remove all listeners. 
             for (var i in Notes) {
                 n = Notes[i];
-                n.rect_div.removeEventListener( "mouseout", n.hide, false );
-                n.rect_div.removeEventListener( "mouseover", n.show, false );
-                n.rect_div.removeEventListener( "mousedown", n.edit, false );
+                n.inner_rect_div.removeEventListener( "mouseout", n.hide, false );
+                n.inner_rect_div.removeEventListener( "mouseover", n.show, false );
+                n.inner_rect_div.removeEventListener( "mousedown", n.edit, false );
             }
             // mouseover / mouseout for photo_img.
             photo_img.removeEventListener("mouseover", photo_img.reveal_notes, false );
@@ -452,28 +603,39 @@
 
              
             // clear the text in our note div.
+            // XXX this is not working for notes posted in others' photos -- does not delete the signature.
             kids = note.text_div.childNodes;
             for (var i = 0; i < kids.length; i++) {
                 note.text_div.removeChild(kids[i]);
             }
             
             note.textarea = document.createElement("textarea");
+            note.textarea.style.width = '20em';
+            note.textarea.style.height = '5em';
+            // matching the style of the page.
+            note.textarea.style.fontFamily = 'Arial, Helvetica, sans-serif';
+            note.textarea.style.fontSize = '12px';
+            
             note.textarea.appendChild(document.createTextNode(note.text))
             
-            var save_button = document.createElement("a");
+            // XXX use clone here to save time... 
+            var save_button = document.createElement("span");
             save_button.href = '#';
             save_button.onclick = note.save;
-            save_button.appendChild( document.createTextNode('Save') );
+            save_button.className = 'Butt';  // defined in page CSS
+            save_button.appendChild( document.createTextNode('SAVE') );
             
-            var cancel_button = document.createElement("a");
+            var cancel_button = document.createElement("span");
             cancel_button.href = '#';
             cancel_button.onclick = remake_notes;
-            cancel_button.appendChild( document.createTextNode('Cancel') );
+            cancel_button.className = 'DeleteButt';  // defined in page CSS, despite name with 'delete' it's just a grey button.
+            cancel_button.appendChild( document.createTextNode('CANCEL') );
 
-            var delete_button = document.createElement("a");
+            var delete_button = document.createElement("span");
             delete_button.href = '#';
             delete_button.onclick = note.del;
-            delete_button.appendChild( document.createTextNode('Delete') );
+            delete_button.className = 'DeleteButt';  // defined in page CSS
+            delete_button.appendChild( document.createTextNode('DELETE') );
             
             note.text_div.appendChild(note.textarea);
             note.text_div.appendChild(document.createElement('br'));
@@ -483,46 +645,207 @@
             note.text_div.appendChild(document.createTextNode(' '));
             note.text_div.appendChild(delete_button);
 
+            
+            // dashed line, black dashes on white.
+            note.highlight_rect_div.style.visibility = 'hidden';
+            note.inner_rect_div.style.left = note.x + 'px';
+            note.inner_rect_div.style.top = note.y + 'px';
+            note.inner_rect_div.style.width = note.w + 'px';
+            note.inner_rect_div.style.height = note.h + 'px';
+            note.inner_rect_div.style.borderStyle = 'dotted';
+            
+
+            var handle_size = 6;
+            
+            handle_div = document.createElement("div");
+            handle_div.style.width = handle_size + 'px';
+            handle_div.style.height = handle_size + 'px';
+            handle_div.style.position = 'absolute';
+            handle_div.style.borderColor = '#000000';
+            handle_div.style.borderStyle = 'solid';
+            handle_div.style.borderWidth = '1px';
+            handle_div.style.background = '#ffffff';
+
+            note.handle = new Array();
+            for (i=0; i<4; ++i) {
+                note.handle[i] = handle_div.cloneNode(true);
+                notes_span.appendChild(note.handle[i]);
+            }
+            // on screen:  
+            // 0 1
+            // 3 2
+
+            note.rects = [ note.inner_rect_div, note.rect_div ];
+            
+            
+            
+            function position_handles() {
+                note.handle[0].style.left = note.x;
+                note.handle[0].style.top = note.y;
+                note.handle[1].style.left = note.x2 - handle_size - 1;
+                note.handle[1].style.top =  note.y;
+                note.handle[2].style.left = note.x2 - handle_size - 1;
+                note.handle[2].style.top = note.y2 - handle_size - 1;
+                note.handle[3].style.left = note.x;
+                note.handle[3].style.top = note.y2 - handle_size - 1;
+
+                for (r in note.rects) {
+                    note.rects[r].style.left = note.x;
+                    note.rects[r].style.top = note.y;
+                    note.rects[r].style.width = note.w;
+                    note.rects[r].style.height = note.h;
+                }
+            }
+
+            function resize() {
+                note.w = note.x2 - note.x;  // alert("x2 = " + note.x2 + ", w = " + note.w)
+                note.h = note.y2 - note.y;
+                position_handles();        
+            }
+
+            function move() {
+                note.x2 = note.x + note.w;
+                note.y2 = note.y + note.h;
+                position_handles();
+            }
+            
+            resize(); 
+            
+            Drag.init(
+                note.handle[0], 
+                function() { return [
+                    0, note.x2 - 2*handle_size - 1,
+                    0, note.y2 - 2*handle_size - 1
+                ]; },
+                note.resizeBegin,
+                function() { 
+                    note.x = parseInt(note.handle[0].style.left);
+                    note.y = parseInt(note.handle[0].style.top);
+                    resize(); 
+                },
+                note.resizeEnd
+            );
+
+            Drag.init(
+                note.handle[1], 
+                function() { return [
+                    note.x + handle_size + 1,  photo_img.width - handle_size - 1,
+                    0, note.y2 - 2*handle_size - 1
+                ] },
+                note.resizeBegin,
+                function() { 
+                    note.x2 = parseInt(note.handle[1].style.left) + handle_size + 1;
+                    note.y = parseInt(note.handle[1].style.top);
+                    resize(); 
+                },
+                note.resizeEnd
+            );
+            
+
+            Drag.init(
+                note.handle[2], 
+                function() {  return [
+                    note.x + handle_size + 1, photo_img.width - handle_size - 1,
+                    note.y + handle_size + 1, photo_img.height - handle_size - 1
+                ] },
+                note.resizeBegin,
+                function() { 
+                    note.x2 = parseInt(note.handle[2].style.left) + handle_size + 1;
+                    note.y2 = parseInt(note.handle[2].style.top) + handle_size + 1;
+                    resize(); 
+                },
+                note.resizeEnd
+            );
+
+
+
+            Drag.init(
+                note.handle[3], 
+                function() { return [
+                    0, note.x2 - 2*handle_size - 1,
+                    note.y + handle_size + 1, photo_img.height - handle_size - 1
+                ] },
+                note.resizeBegin,
+                function() { 
+                    note.x  = parseInt(note.handle[3].style.left);
+                    note.y2 = parseInt(note.handle[3].style.top) + handle_size + 1;
+                    resize(); 
+                },
+                note.resizeEnd
+            );
+
+
+            Drag.init(
+                note.inner_rect_div,
+                function() { return [  
+                    1, photo_img.width - note.w, 1, photo_img.height - note.h,
+                ] },
+                note.resizeBegin,
+                function() {
+                    note.x = parseInt(note.inner_rect_div.style.left);
+                    note.y = parseInt(note.inner_rect_div.style.top);
+                    move();
+                },
+                note.resizeEnd
+            );
         }
         
-        if (is_owner) {
-            this.rect_div.addEventListener( "mousedown",this.edit, false );
+        // XXX have to check if there is some editing (or deleting) feature for notes you don't own,
+        // but which are on your pages.
+        if (this.author == global_nsid) {
+            this.inner_rect_div.addEventListener( "mousedown",this.edit, false );
         }
 
         
     }         
-            
-
-               
-    function notes_init(req, rsp) {
-
+   
+    function notes_init() {
         // using spans instead of divs so as not to trigger block element.
         // n.b. these spans are global to this GM extension.
         notes_span = document.createElement('span');
         notes_span.id = 'notes';
         texts_span = document.createElement('span');
-        texts_span.id = 'texts';
-        
-        var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
-
-        var node = collection.iterateNext();
-        while (node) {
-            var note = new Note(node);
-            node = collection.iterateNext();
-        }
+        texts_span.id = 'texts';        
 
         photo_div.insertBefore(notes_span,note_insert_point);
         photo_div.insertBefore(texts_span,note_insert_point);
        
         photo_img.reveal_notes =  visiblizer( notes_span, true );
         photo_img.addEventListener( "mouseover", photo_img.reveal_notes, false );
+        
         photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
+    } 
+               
+    function notes_retrieve(req, rsp) {
+        
+        notes_init();
+        
+        var collection = document.evaluate( "//note", rsp, null, XPathResult.ANY_TYPE, null );
+
+        var node = collection.iterateNext();
+        while (node) {
+            n = new Object();
+        
+            n.id = node.getAttribute('id');
+            n.author = node.getAttribute('author');
+            n.authorname = node.getAttribute('authorname');
+            n.x = parseInt(node.getAttribute('x'));
+            n.y = parseInt(node.getAttribute('y'));
+            n.w = parseInt(node.getAttribute('w'));
+            n.h = parseInt(node.getAttribute('h'));
+            n.text = node.textContent; // XXX maybe stripping html here (incorrectly)
+            
+            var note = new Note(n);
+            
+            node = collection.iterateNext();
+        }
+
          
         flash_notes();
     }
     
     function make_notes() {
-        flickr_api_call( "flickr.photos.getInfo", { 'photo_id':ps_photo_id }, notes_init );
+        flickr_api_call( "flickr.photos.getInfo", { 'photo_id':ps_photo_id }, notes_retrieve );
     }
     
 
@@ -545,7 +868,20 @@
         make_notes();
     }
     
-        
+    function photo_add_note() {
+        // init notes if there aren't any
+        if (notes_span == null) {
+            notes_init();
+        }
+        var n = new Note( {
+            x: 10, y: 10, w: 32, h: 32,
+            text: 'Note text here.',
+            author: global_nsid
+        } );
+        notes_span.style.visibility = 'visible';
+        n.show();
+        n.edit();
+    }    
 
     // ---------------------------------------------
     // TOOLBAR
@@ -554,6 +890,17 @@
     // the toolbar changes if the user owns the photo
     var is_owner = photo_hash[ps_photo_id].isOwner;
 
+
+    // --------------------------------------------
+    // add note
+    if (global_nsid) {
+        var note_button = document.createElement('a');
+        note_button.href = '#';
+        note_button.onclick = photo_add_note;
+        note_button.appendChild( document.createTextNode('Add Note') );
+        button.push(note_button);
+    }
+    
 
     // ---------------------------------------------
     // sizes
@@ -575,7 +922,6 @@
 
     // ---------------------------------------------
     // blog this    
-    // xxx only if logged in! 
     if (global_nsid) { // if logged in
         var blog_button = document.createElement('a');
         blog_button.href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
@@ -596,7 +942,6 @@
 
     // ---------------------------------------------
     // favorite
-    // XXX only if logged in!
    
     var fave_div = document.createElement('div');
     fave_div.id = 'fave_star';
@@ -706,13 +1051,7 @@
     }
 
 
-    // --- notes toolbar -- for ADDING notes.
     
-    //if (is_owner) {
-    //    note_button = document.createElement('a');
-    //  note_button.href = '#';
-    //  //note_button.onclick = photo_draw_notes;
-    //}
 
 
 
