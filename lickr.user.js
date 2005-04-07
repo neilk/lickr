@@ -1,5 +1,4 @@
 // Lickr -- Flickr, without the Flash
-//          Eye candy is dandy, but Lickr is quicker
 // v.0.1 
 // Author: Neil Kandalgaonkar <neilk@brevity.org>
 
@@ -11,46 +10,20 @@
 // @include     http://flickr.com/photos/*
 // ==/UserScript=
 
+
+
+
 // basic gist:
 // we want to replace the swf with ordinary html imgs, and explicit calls to the Flickr API
 // using javascript or resty things.
 
 // XXX todo
-// notes dragging
-// whoops, highlight divs are in the wrong place now.
-// figure out the inner/outer controversy.
-//   we need to draw a grey line. (or do we? what if we just left it as is, black/white border?)
-//   when dragging, we need to move two divs simultaneously to get the white-black border effect.
-//   two ways to do that:
-//   drag outer object, inner comes along automatically.
-//      cannot define an object as inner or outer and have it share same dims (or can I??)
-//   drag inner object, defined drag applying to outer black.
-//      good for dragging all, just hide and show.
-//      this is fine, but implies a note div, which caused problems before. Can we have a div that is
-//      "transparent" to mouseclicks? I don't think so.
-//   manually move both absolutely-positioned divs.
-//      
-//   would rather hide/show/move manually. it's not THAT hard.
-//   
 
-// a) keep the same old inner/outer rect
-//    move highlight rect in, color white?
-//  
-// notes resizing
-// note-editing styling 
-//   - textarea
-//   - save the newlines? <pre>?
-//   - buttons
-//   - buttons in their own div, just near the note?
-// adding notes
-// can you edit notes other people post? (probably not...)
+// notes flash on load of image/page?
+// rounded corners on notes.
+// some closure-izers are not necessary.
 
-// may it would be simpler to use API to get sizes.
-
-// innerHTML --> unescape.
-// some closure-izers are not necessary, I just didn't understand scoping.
-
-// license
+// license of this code.
 
 
 // like to have:
@@ -76,8 +49,8 @@
     var TEXT_NODE = 3  
     
     // misc
-    var API_KEY = '13f398c89f8c160c1c1428a8ba704710';
-    var DEBUG = true;
+    var API_KEY = 'de468b48e226d3e788d6e7d426412aba';
+    // var DEBUG = true;
     
     // magic numbers: the flash file is larger than the img size by this much, due to 
     // toolbar and border
@@ -88,7 +61,7 @@
     // If flash file is this size, the width of the image cannot be determined
     var ps_w_flash_min = 362 
      
-
+    
   
     //-------------------------------------------------------------------------
     // utility functions
@@ -139,7 +112,7 @@
                     return;
                 }
                 
-                //alert(req.responseText);
+                // if (alert_response) { alert(req.responseText); }
                 
                 if( req.status != OK ) {
                     throw new procException( op_name + " request status was '" + req.status + "'", req )
@@ -487,7 +460,17 @@ var Drag = {
         this.text_div.style.left =this.x + 'px';            
         this.text_div.style.top = (this.y +this.h + 5) + 'px';
         this.text_div.style.padding = '5px';
-        this.text_div.appendChild( document.createTextNode(this.text) );
+        text_node = document.createElement('span');
+        text_node.className = 'note_text';
+        // show newlines as br's 
+        var text_lines = this.text.split("\n");
+        for (var i in text_lines) {
+            text_node.appendChild( document.createTextNode(text_lines[i]) );
+            if (i < (text_lines.length-1)) {
+                text_node.appendChild( document.createElement('br') );
+            }
+        }
+        this.text_div.appendChild(text_node);
        
         // if the note author is the person who made the note, yellow without signature
         // alert( 'note.author = ' +this.author + ' ps_nsid = ' + ps_nsid );
@@ -524,7 +507,6 @@ var Drag = {
         this.inner_rect_div.addEventListener( "mouseover", this.show, false );
         this.inner_rect_div.addEventListener( "mouseout", this.hide, false );
 
-
         this.save = function() {
             // gather all changed params. 
             // Or? assume dims have been updated already, since mouse event must have happened.?
@@ -532,7 +514,7 @@ var Drag = {
             // XXX note.y
             // XXX note.w
             // XXX note.h
-            note.text = note.textarea.value; 
+            note.text = note.textarea.value;
            
             if (note.id != null) {
                  
@@ -601,49 +583,61 @@ var Drag = {
             photo_img.removeEventListener("mouseover", photo_img.reveal_notes, false );
             photo_img.removeEventListener("mouseout",  timeout_hide_notes, false );
 
-             
-            // clear the text in our note div.
-            // XXX this is not working for notes posted in others' photos -- does not delete the signature.
-            kids = note.text_div.childNodes;
-            for (var i = 0; i < kids.length; i++) {
-                note.text_div.removeChild(kids[i]);
-            }
-            
             note.textarea = document.createElement("textarea");
             note.textarea.style.width = '20em';
             note.textarea.style.height = '5em';
             // matching the style of the page.
             note.textarea.style.fontFamily = 'Arial, Helvetica, sans-serif';
             note.textarea.style.fontSize = '12px';
-            
             note.textarea.appendChild(document.createTextNode(note.text))
+
+            // want the author to appear on a separate line,
+            // if there is one.
+            textarea_span = document.createElement('span');
+            textarea_span.appendChild( note.textarea );
+            if (note.author != ps_photo_character_id) {
+                textarea_span.appendChild(document.createElement('br'));
+            }
+            
+            // swap note text for textarea
+            var kids = note.text_div.childNodes;
+            for (var i = 0; i < kids.length; i++) {
+                if (kids[i].className == 'note_text') {
+                    note.text_div.replaceChild(textarea_span, kids[i]);
+                }
+            }
+            
+            var button =  document.createElement("span");
+            button.href = '#';
+            button.style.paddingLeft = '0.6em';
+            button.style.paddingRight = '0.6em';
+            button.style.paddingTop = '0.3em';
+            button.style.paddingBottom = '0.3em';
+
+            var make_button = function(text, onclick, className) {
+                var b = button.cloneNode(false);
+                b.onclick = onclick;
+                b.className = className; 
+                b.appendChild( document.createTextNode( text ) );
+                return b;
+            }
             
             // XXX use clone here to save time... 
-            var save_button = document.createElement("span");
-            save_button.href = '#';
-            save_button.onclick = note.save;
-            save_button.className = 'Butt';  // defined in page CSS
-            save_button.appendChild( document.createTextNode('SAVE') );
-            
-            var cancel_button = document.createElement("span");
-            cancel_button.href = '#';
-            cancel_button.onclick = remake_notes;
-            cancel_button.className = 'DeleteButt';  // defined in page CSS, despite name with 'delete' it's just a grey button.
-            cancel_button.appendChild( document.createTextNode('CANCEL') );
+            var save_button = make_button('SAVE', note.save, 'Butt');
+            var cancel_button = make_button('CANCEL', remake_notes, 'DeleteButt');
+            var delete_button = make_button('DELETE', note.del, 'DeleteButt');
+           
+            buttons_div = document.createElement('div');
+            buttons_div.style.position = 'relative';
+            buttons_div.style.marginTop = '0.75em'; 
+            buttons_div.style.marginBottom = '0.5em'; 
+            buttons_div.appendChild(save_button);
+            buttons_div.appendChild(document.createTextNode(' '));
+            buttons_div.appendChild(cancel_button);
+            buttons_div.appendChild(document.createTextNode(' '));
+            buttons_div.appendChild(delete_button);
 
-            var delete_button = document.createElement("span");
-            delete_button.href = '#';
-            delete_button.onclick = note.del;
-            delete_button.className = 'DeleteButt';  // defined in page CSS
-            delete_button.appendChild( document.createTextNode('DELETE') );
-            
-            note.text_div.appendChild(note.textarea);
-            note.text_div.appendChild(document.createElement('br'));
-            note.text_div.appendChild(save_button);
-            note.text_div.appendChild(document.createTextNode(' '));
-            note.text_div.appendChild(cancel_button);
-            note.text_div.appendChild(document.createTextNode(' '));
-            note.text_div.appendChild(delete_button);
+            note.text_div.appendChild(buttons_div);
 
             
             // dashed line, black dashes on white.
@@ -671,13 +665,12 @@ var Drag = {
                 note.handle[i] = handle_div.cloneNode(true);
                 notes_span.appendChild(note.handle[i]);
             }
-            // on screen:  
+           
+            // handles at corners: 
             // 0 1
             // 3 2
 
             note.rects = [ note.inner_rect_div, note.rect_div ];
-            
-            
             
             function position_handles() {
                 note.handle[0].style.left = note.x;
@@ -790,9 +783,11 @@ var Drag = {
             );
         }
         
-        // XXX have to check if there is some editing (or deleting) feature for notes you don't own,
-        // but which are on your pages.
-        if (this.author == global_nsid) {
+        // you can edit the note if: 
+        if ( (global_nsid == ps_photo_character_id)  // you own the photo
+                ||
+             (global_nsid == this.author)  //   you are the note author
+        ) {
             this.inner_rect_div.addEventListener( "mousedown",this.edit, false );
         }
 
@@ -833,7 +828,13 @@ var Drag = {
             n.y = parseInt(node.getAttribute('y'));
             n.w = parseInt(node.getAttribute('w'));
             n.h = parseInt(node.getAttribute('h'));
-            n.text = node.textContent; // XXX maybe stripping html here (incorrectly)
+            n.text = '';
+            nc = node.childNodes;
+            for (var i in nc) {
+                if (nc[i].nodeType == TEXT_NODE) {
+                    n.text += nc[i].nodeValue;
+                }
+            }
             
             var note = new Note(n);
             
@@ -889,11 +890,13 @@ var Drag = {
     
     // the toolbar changes if the user owns the photo
     var is_owner = photo_hash[ps_photo_id].isOwner;
-
+    var can_tag = (xpath_single_node(document,"//div[@id='tagadder'][1]") != null);
+    
 
     // --------------------------------------------
     // add note
-    if (global_nsid) {
+    // appears to use the same perms as adding tags
+    if (can_tag) {
         var note_button = document.createElement('a');
         note_button.href = '#';
         note_button.onclick = photo_add_note;
@@ -942,40 +945,44 @@ var Drag = {
 
     // ---------------------------------------------
     // favorite
-   
-    var fave_div = document.createElement('div');
-    fave_div.id = 'fave_star';
-    fave_div.style.cssFloat = 'right';
-    fave_div.style.color = '#ff00ff';
-    fave_div.style.fontSize = '0.8em';
-    fave_div.style.textAlign = 'center';
-    fave_div.style.position = 'relative';
-    fave_div.style.top = '2.5em';
-    fave_div.style.visibility = 'hidden';
+  
+    var fav_div;
      
-    var fave_star = document.createElement('span'); 
-    fave_star.style.fontSize = '4em';
-    fave_star.style.lineHeight = '0px';
-    fave_star.appendChild( document.createTextNode('*'));
+    function fave_init() {
+        fave_div = document.createElement('div');
+        fave_div.id = 'fave_star';
+        fave_div.style.cssFloat = 'right';
+        fave_div.style.color = '#ff00ff';
+        fave_div.style.fontSize = '0.8em';
+        fave_div.style.textAlign = 'center';
+        fave_div.style.position = 'relative';
+        fave_div.style.top = '2.5em';
+        fave_div.style.visibility = 'hidden';
+         
+        var fave_star = document.createElement('span'); 
+        fave_star.style.fontSize = '4em';
+        fave_star.style.lineHeight = '0px';
+        fave_star.appendChild( document.createTextNode('*'));
 
-    fave_div.appendChild(fave_star)
-    fave_div.appendChild( document.createElement('br') );
-    
-    var t_span = document.createElement('span');
-    t_span.appendChild(document.createTextNode('FAVE'));
-    t_span.style.lineHeight = '1em';
-    
-    fave_div.appendChild( t_span );
-            
-    h1  = swf_td.getElementsByTagName('h1').item(0);
-
-    var h1_fave = document.createElement('div')
-    h1_fave.style.width = photo_img.width + 7; // to adjust for 7px margin on left.
-    h1_fave.appendChild(fave_div);
-    h1_fave.appendChild(h1);
+        fave_div.appendChild(fave_star)
+        fave_div.appendChild( document.createElement('br') );
         
-    // swf_td.style.position = 'relative';
-    swf_td.insertBefore(h1_fave, photo_div); 
+        var t_span = document.createElement('span');
+        t_span.appendChild(document.createTextNode('FAVE'));
+        t_span.style.lineHeight = '1em';
+        
+        fave_div.appendChild( t_span );
+                
+        h1  = swf_td.getElementsByTagName('h1').item(0);
+
+        var h1_fave = document.createElement('div')
+        h1_fave.style.width = photo_img.width + 7; // to adjust for 7px margin on left.
+        h1_fave.appendChild(fave_div);
+        h1_fave.appendChild(h1);
+            
+        // swf_td.style.position = 'relative';
+        swf_td.insertBefore(h1_fave, photo_div); 
+    }
 
     function photo_fave() {        
         flickr_api_call( "flickr.favorites.add", { 'photo_id':ps_photo_id }, draw_fave );
@@ -992,7 +999,7 @@ var Drag = {
         fave_div.style.visibility = 'visible';
         // change the text... 
         fave_button.replaceChild( 
-            document.createTextNode('Remove from favorites'),
+            document.createTextNode('Remove from Favorites'),
             fave_button.firstChild
         );
         fave_button.onclick = photo_unfave;
@@ -1001,7 +1008,7 @@ var Drag = {
     function draw_unfave() {
         fave_div.style.visibility = 'hidden';
         fave_button.replaceChild( 
-            document.createTextNode('Add to favorites'),
+            document.createTextNode('Add to Favorites'),
             fave_button.firstChild
         );
         fave_button.onclick = photo_fave;
@@ -1009,9 +1016,10 @@ var Drag = {
 
  
     if (!is_owner && global_nsid) { // not owner, but logged in...
+        fave_init();
         var fave_button = document.createElement('a');
         fave_button.href = '#';
-        fave_button.appendChild( document.createTextNode('Add to favorites') );
+        fave_button.appendChild( document.createTextNode('Add to Favorites') );
         fave_button.onclick = photo_fave;
         button.push(fave_button)
         if (ps_isfav) {
@@ -1108,8 +1116,9 @@ var Drag = {
 
             if (i+1 < button.length) {
                 var bullet = document.createElement('span');
-                // how does one get an entityReference from HTML?
-                bullet.innerHTML = '&bull;';
+                // bullet.appendChild( document.createTextNode( unescape('&bull;') ) );
+                // how does one get an entityReference from HTML? unescape doesn't work.
+                // bullet.innerHTML = '&bull;';
                 bullet.style.margin = '0em 0.3em 0em 0.3em';
                 bullet.style.color = '#b0b0b0';
            
