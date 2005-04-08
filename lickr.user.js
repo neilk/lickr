@@ -3,9 +3,8 @@
 Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
-version: 0.2
-$Id: lickr.user.js,v 1.17 2005-04-08 07:13:07 brevity Exp $
-released: 2005-04-07
+version: 0.1
+$Id: lickr.user.js,v 1.18 2005-04-08 07:14:19 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
