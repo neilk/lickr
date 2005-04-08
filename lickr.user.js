@@ -3,8 +3,8 @@
 Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
-version: 0.1
-$Id: lickr.user.js,v 1.18 2005-04-08 07:14:19 brevity Exp $
+version: 0.2   
+$Id: lickr.user.js,v 1.19 2005-04-08 09:39:42 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -39,13 +39,12 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
 // XXX todo
 
-// notes flash on load of image/page?
-// rounded corners on notes.
+// why does the main photo 'flash' on some note operations? it isn't being reloaded.
 // some closures are not necessary any more.
 // integrate Drag with Notes better.
-// why does the main photo 'flash' on some note operations?
 
 // like to have:
+// rounded corners on notes.
 // less cheesy flash removal
 // less cheesy image reloading (?)
 // generic spinners in procs (?)
@@ -426,24 +425,33 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
 
 
-    function flash_notes() {             
-        notes_span.style.visibility = 'visible';
-        // this can actually go before people see it...
-        // need to have this flash triggered when the page is fully loaded or something.
-        timeout_hide_notes();
-    }
     
 
     var notes_hider_timeout;
 
-    function timeout_hide_notes() {
-       if (notes_hider_timeout != null) {
-            clearTimeout(notes_hider_timeout);
-       }
-       notes_hider_timeout = setTimeout( visiblizer( notes_span, false ), 2000 );
+    function timeouter_notes(ms) {
+        return function() {
+            if (notes_hider_timeout != null) {
+                clearTimeout(notes_hider_timeout);
+            }
+            notes_hider_timeout = setTimeout( visiblizer( notes_span, false ), ms );
+        }
     }
+    
+    var timeout_hide_notes = timeouter_notes(300);
+    var slow_timeout_hide_notes = timeouter_notes(2000);
 
+    function flash_notes() {             
+        notes_span.style.visibility = 'visible';
+        slow_timeout_hide_notes();
+    }
    
+    function reveal_notes() { 
+        if (notes_hider_timeout != null) {
+            clearTimeout(notes_hider_timeout);
+        }
+        notes_span.style.visibility = 'visible';
+    }
    
     function remake_notes() {}; // forward declaration (??); 
    
@@ -635,7 +643,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                 n.inner_rect_div.removeEventListener( "mousedown", n.edit, false );
             }
             // mouseover / mouseout for photo_img.
-            photo_img.removeEventListener("mouseover", photo_img.reveal_notes, false );
+            photo_img.removeEventListener("mouseover", reveal_notes, false );
             photo_img.removeEventListener("mouseout",  timeout_hide_notes, false );
         };
 
@@ -876,8 +884,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         photo_div.insertBefore(notes_span,note_insert_point);
         photo_div.insertBefore(texts_span,note_insert_point);
        
-        photo_img.reveal_notes =  visiblizer( notes_span, true );
-        photo_img.addEventListener( "mouseover", photo_img.reveal_notes, false );
+        photo_img.addEventListener( "mouseover", reveal_notes, false );
         
         photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
 
@@ -1171,7 +1178,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         var p = elm('p');
         photo_div.appendChild(p);
         p.style.color = '#666666';
-        p.appendChild( txt( 'This Photo: ' ));
+        // p.appendChild( txt( 'This Photo: ' ));
     
         for (var i = 0; i < toolbar.length; ++i ) {
             
