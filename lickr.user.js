@@ -1,6 +1,33 @@
-// Lickr -- Flickr, without the Flash
-// v.0.1 
-// Author: Neil Kandalgaonkar <neilk@brevity.org>
+/* 
+
+Lickr -- replace Flickr's Flash interface for photos with similar
+         browser-based interface.
+         
+version: 0.2
+CVS:    
+released: 2005-04-07
+
+Copyright (c) 2005, Neil Kandalgaonkar
+Released under the BSD license
+http://www.opensource.org/licenses/bsd-license.php
+
+--------------------------------------------------------------------------
+
+This is a Greasemonkey user script, intended for use with Firefox 1.0.2 or 
+later. It may work with other versions of Firefox or Mozilla.
+
+To use this software, you must first install the Greasemonkey extension: 
+
+  http://greasemonkey.mozdev.org/
+  
+Then restart Firefox and open this script in the browser. Select the 
+Firefox menu item "Tools : Install User Script". Accept the default 
+configuration and install.
+
+To uninstall, go to the menu item Tools : Manage User Scripts, select 
+"Lickr", and click Uninstall.
+
+*/
 
 // ==UserScript==
 // @name      Lickr
@@ -11,20 +38,13 @@
 // ==/UserScript=
 
 
-
-
-// basic gist:
-// we want to replace the swf with ordinary html imgs, and explicit calls to the Flickr API
-// using javascript or resty things.
-
 // XXX todo
 
 // notes flash on load of image/page?
 // rounded corners on notes.
-// some closure-izers are not necessary.
-
-// license of this code.
-
+// some closures are not necessary any more.
+// integrate Drag with Notes better.
+// why does the main photo 'flash' on some note operations?
 
 // like to have:
 // less cheesy flash removal
@@ -32,6 +52,7 @@
 // generic spinners in procs (?)
 // cursor does not seem to update unless moved.
 // move factory functions inside contexts so they need not be fully parsed...
+
 
 (function() {
     
@@ -72,7 +93,34 @@
                      context_node, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
                 ).singleNodeValue;
     }
+   
     
+    // ultimately stolen from http://persistent.info/greasemonkey/gmail.user.js
+    function getObjectMethodClosure(object, method) {
+        return function() {
+            return object[method](); 
+        }
+    }
+
+    function getObjectMethodClosure1(object, method) {
+        return function(arg) {
+            return object[method](arg); 
+        }
+    }
+
+    // Shorthand
+    var elm = getObjectMethodClosure1(document, "createElement");
+    var txt = getObjectMethodClosure1(document, "createTextNode");
+    
+    function css( el, s ) {
+        for (var attr in s) {
+            el.style[attr] = s[attr];
+        }
+    }  
+
+    
+    // flickr api 
+     
     function do_req( method, proc_request, url, referer, data ) {
         var req = new XMLHttpRequest();
         req.onreadystatechange = function() { proc_request(req) };
@@ -106,7 +154,7 @@
             
             try {
                 // init progress
-                document.body.style.cursor='progress';
+                document.body.style.cursor = 'progress';
                 
                 if (req.readyState != COMPLETE) {
                     return;
@@ -123,7 +171,7 @@
             } catch(e) {
                 
                 // clean up progress
-                document.body.style.cursor='default';
+                document.body.style.cursor = 'default';
                 
                 if (e instanceof procException) {
                     alert( e.msg );
@@ -137,7 +185,7 @@
 
             // clean up progress
 
-            document.body.style.cursor='default';
+            document.body.style.cursor = 'default';
         }
     }
 
@@ -213,9 +261,10 @@
     
     // okay let's get inserting
     
-    var photo_div = document.createElement('div');
-    photo_div.style.position = 'relative';  // what does this do??
-    photo_div.style.margin = '5px'; // lines up with other elements better.
+    var photo_div = elm('div');
+    css( photo_div, { 'position':'relative', 'margin':'5px'  });
+      
+    //photo_div.style.margin = '5px'; // lines up with other elements better.
 
     // and show the div!
     swf_td.insertBefore(photo_div, photo_insert_point);
@@ -223,7 +272,7 @@
     // the image
     // all the ps_* vars are defined in a script on the photo pages
     
-    var photo_img = document.createElement('img');
+    var photo_img = elm('img');
     photo_img.style.borderColor = '#000000';
     photo_img.style.borderWidth = 1;
     
@@ -245,7 +294,7 @@
     
     photo_div.appendChild(photo_img);
     
-    var note_insert_point = document.createElement('span');
+    var note_insert_point = elm('span');
     photo_div.appendChild(note_insert_point);
 
 
@@ -253,112 +302,129 @@
     // notes
 
     /*<note id="313" author="12037949754@N01"
-			authorname="Bees" x="10" y="10"
-			w="50" h="50">foo</note> */
+            authorname="Bees" x="10" y="10"
+            w="50" h="50">foo</note> */
  
 
-/* --------------- DOM-DRAG ----------------------- */
-// Aaron Boodman.
-// move within Note object thingy.
-var Drag = {
 
-	obj : null,
+    // Drag is based on DOM-Drag by Aaron Boodman.
+    // <http://www.youngpup.net/2001/domdrag>
+    // do not blame him for bugs, it's radically modified and simplified.
+    var Drag = {
 
-	init : function(o, set_bounding, onDragStart, onDrag, onDragEnd)
-	{
-        o.onmousedown	= Drag.start;
+        obj : null,
 
-        o.set_bounding = set_bounding;
-        
+        init : function(o, set_bounding, onDragStart, onDrag, onDragEnd)
+        {
+            o.onmousedown    = Drag.start;
 
-        // loop?
-        o.onDragStart =  (onDragStart != null) ? onDragStart : function(){};
-        o.onDrag =       (onDrag      != null) ? onDrag      : function(){};
-        o.onDragEnd =    (onDragEnd   != null) ? onDragEnd   : function(){};
-	},
+            o.set_bounding = set_bounding;
+            
+            o.onDragStart =  (onDragStart != null) ? onDragStart : function(){};
+            o.onDrag =       (onDrag      != null) ? onDrag      : function(){};
+            o.onDragEnd =    (onDragEnd   != null) ? onDragEnd   : function(){};
+        },
 
-	start : function(e)
-	{
-		var o = Drag.obj = this;
-		var y = parseInt(o.style.top);
-		var x = parseInt(o.style.left);
-       
-        // this could be set for all of them, after a successful drag, instead. 
-        bounds = o.set_bounding();
-        o.minX = bounds[0];
-        o.maxX = bounds[1];
-        o.minY = bounds[2];
-        o.maxY = bounds[3];
-		
-        o.onDragStart(x, y);
+        start : function(e)
+        {
+            var o = Drag.obj = this;
+            var y = parseInt(o.style.top);
+            var x = parseInt(o.style.left);
+           
+            // this could be set for all of them, after a successful drag, instead. 
+            bounds = o.set_bounding();
+            o.minX = bounds[0];
+            o.maxX = bounds[1];
+            o.minY = bounds[2];
+            o.maxY = bounds[3];
+            
+            o.onDragStart(x, y);
 
-		o.lastMouseX	= e.clientX;
-		o.lastMouseY	= e.clientY;
-	    o.minMouseX	= e.clientX - x + o.minX;
-		o.maxMouseX	= o.minMouseX + o.maxX - o.minX;
-		o.minMouseY	= e.clientY - y + o.minY;
-        o.maxMouseY	= o.minMouseY + o.maxY - o.minY;
+            o.lastMouseX    = e.clientX;
+            o.lastMouseY    = e.clientY;
+            o.minMouseX    = e.clientX - x + o.minX;
+            o.maxMouseX    = o.minMouseX + o.maxX - o.minX;
+            o.minMouseY    = e.clientY - y + o.minY;
+            o.maxMouseY    = o.minMouseY + o.maxY - o.minY;
 
-		document.onmousemove	= Drag.drag;
-		document.onmouseup		= Drag.end;
+            document.onmousemove    = Drag.drag;
+            document.onmouseup        = Drag.end;
 
-		return false;
-	},
+            return false;
+        },
 
-	drag : function(e)
-	{
-		var o = Drag.obj;
+        drag : function(e)
+        {
+            var o = Drag.obj;
 
-		var ey	= e.clientY;
-		var ex	= e.clientX;
-		var y = parseInt(o.style.top);
-		var x = parseInt(o.style.left);
-		var nx, ny;
+            var ey    = e.clientY;
+            var ex    = e.clientX;
+            var y = parseInt(o.style.top);
+            var x = parseInt(o.style.left);
+            var nx, ny;
 
-		ex = Math.max(ex, o.minMouseX);
-		ex = Math.min(ex, o.maxMouseX);
-		ey = Math.max(ey, o.minMouseY);
-		ey = Math.min(ey, o.maxMouseY);
+            ex = Math.max(ex, o.minMouseX);
+            ex = Math.min(ex, o.maxMouseX);
+            ey = Math.max(ey, o.minMouseY);
+            ey = Math.min(ey, o.maxMouseY);
 
-		nx = x + ex - o.lastMouseX;
-		ny = y + ey - o.lastMouseY;
+            nx = x + ex - o.lastMouseX;
+            ny = y + ey - o.lastMouseY;
 
-		Drag.obj.style.left = nx + "px";
-		Drag.obj.style.top = ny + "px";
-		Drag.obj.lastMouseX	= ex;
-		Drag.obj.lastMouseY	= ey;
+            Drag.obj.style.left = nx + "px";
+            Drag.obj.style.top = ny + "px";
+            Drag.obj.lastMouseX    = ex;
+            Drag.obj.lastMouseY    = ey;
 
-		Drag.obj.onDrag(nx, ny);
-		return false;
-	},
+            Drag.obj.onDrag(nx, ny);
+            return false;
+        },
 
-	end : function()
-	{
-		document.onmousemove = null;
-		document.onmouseup   = null;
-		Drag.obj.onDragEnd(	parseInt(Drag.obj.style.left), 
-									parseInt(Drag.obj.style.top)   );
-		Drag.obj = null;
-	},
+        end : function()
+        {
+            document.onmousemove = null;
+            document.onmouseup   = null;
+            Drag.obj.onDragEnd(    parseInt(Drag.obj.style.left), 
+                                        parseInt(Drag.obj.style.top)   );
+            Drag.obj = null;
+        },
 
-};
-
-
-/* --------------- end DOM-DRAG ----------------------- */
+    };
+    
+    /*  end of drag */
+    
+    
         
     var Notes = new Array();    
 
     
-    function visiblizer( elm, vis ) {
+    function visiblizer( el, vis ) {
         return function() {
-            elm.style.visibility = vis ? 'visible' : 'hidden';
+            el.style.visibility = vis ? 'visible' : 'hidden';
         }
     }
-  
-   
 
     var notes_span;
     var texts_span;
+    
+    
+    /* resizable note handler divs */
+    var handle_size = 6;
+    var handle_div;
+    function prep_resizable_notes() {
+        // cloneable for resize handlers.
+        handle_div = elm("div");
+        css( handle_div, {
+            'width'       : handle_size + 'px',
+            'height'      : handle_size + 'px',
+            'position'    : 'absolute',
+            'borderColor' : '#000000',
+            'borderStyle' : 'solid',
+            'borderWidth' : '1px',
+            'background'  : '#ffffff'
+        } );
+    } 
+
 
 
     function flash_notes() {             
@@ -372,7 +438,6 @@ var Drag = {
     var notes_hider_timeout;
 
     function timeout_hide_notes() {
-       // alert("timing out!");
        if (notes_hider_timeout != null) {
             clearTimeout(notes_hider_timeout);
        }
@@ -394,80 +459,84 @@ var Drag = {
         this.x2 = this.x + this.w; 
         this.y2 = this.y + this.h;
         
-        // defining each note div:
+        // defining each note:
         
-        //  notes_span (visible or hidden)
-        //   highlight_div (yellow)                           }
-        //   this.inner_rect_div (black square)                  }
-        //   this.rect_div (white square, true boundary)           }  for each note
-        //    ...
-        //  texts_span (always in front of every rect)
-        //   this.text_div (visible on mouseover of associated rect). } for each note
-        //    ...
+        //   notes_span (visible or hidden)
+        //     highlight_div (yellow highlight on mouseover)          
+        //     rect_div (black, true boundary of note)
+        //     inner_rect_div (white, receives mouseovers)    
+        //     ...
+        //           
+        //   texts_span (always in front of every rect)
+        //     text_div (visible on mouseover of associated inner_rect)
+        //  
        
-        this.highlight_rect_div = document.createElement('div');
+        this.highlight_rect_div = elm('div');
         notes_span.appendChild(this.highlight_rect_div);
 
-        this.rect_div = document.createElement('div');
+        this.rect_div = elm('div');
         notes_span.appendChild(this.rect_div);
         
-        this.inner_rect_div = document.createElement('div');
+        this.inner_rect_div = elm('div');
         notes_span.appendChild(this.inner_rect_div);
 
-        this.text_div = document.createElement('div');
+        this.text_div = elm('div');
         texts_span.appendChild(this.text_div);
 
        
         // styling them all...
-         
-        this.rect_div.style.position = 'absolute';
-        this.rect_div.style.left =this.x + 'px';            
-        this.rect_div.style.top =this.y + 'px';
-        this.rect_div.style.width =this.w + 'px';
-        this.rect_div.style.height =this.h + 'px';
-        this.rect_div.style.borderColor = '#000000';
-        this.rect_div.style.borderStyle = 'solid';
-        this.rect_div.style.borderWidth = '1px';
- /*        
-        this.inner_rect_div.style.position = 'relative';
-        this.inner_rect_div.style.width = (this.w - 2) + 'px';
-        this.inner_rect_div.style.height = (this.h - 2) + 'px';
- */
-        this.inner_rect_div.style.position = 'absolute';
-        this.inner_rect_div.style.left = (this.x + 1) + 'px';            
-        this.inner_rect_div.style.top = (this.y + 1) + 'px'
-        this.inner_rect_div.style.width = (this.w - 2) + 'px';
-        this.inner_rect_div.style.height = (this.h - 2) + 'px';
- 
-        this.inner_rect_div.style.borderColor = '#ffffff';
-        this.inner_rect_div.style.borderStyle = 'solid';
-        this.inner_rect_div.style.borderWidth = '1px';
+        
+        css( this.rect_div, {
+            'position' : 'absolute',
+            'left'  : this.x + 'px',  'top'    : this.y + 'px',
+            'width' : this.w + 'px',  'height' : this.h + 'px',
+            'borderColor' : '#000000',
+            'borderStyle' : 'solid',
+            'borderWidth' : '1px'
+        } );
+        
+        css( this.inner_rect_div, {
+            'position'    : 'absolute',
+            'left'        : (this.x + 1) + 'px',
+            'top'         : (this.y + 1) + 'px',
+            'width'       : (this.w - 2) + 'px',
+            'height'      : (this.h - 2) + 'px',
+            'borderColor' : '#ffffff',
+            'borderStyle' : 'solid',
+            'borderWidth' : '1px'
+        } );
         
         // XXX what if this is negative?
-        this.highlight_rect_div.style.position = 'absolute';
-        this.highlight_rect_div.style.left = (this.x - 2) + 'px';            
-        this.highlight_rect_div.style.top = (this.y - 2) + 'px';
-        this.highlight_rect_div.style.width = (this.w + 2) + 'px';
-        this.highlight_rect_div.style.height = (this.h + 2) + 'px';
-        this.highlight_rect_div.style.borderColor = '#ffff00';
-        this.highlight_rect_div.style.borderStyle = 'solid';
-        this.highlight_rect_div.style.borderWidth = '2px';
-        this.highlight_rect_div.style.opacity = 0.5; // CSS 3, only newer Mozillas as of 2005.
-        this.highlight_rect_div.style.visibility = 'hidden';
+        css( this.highlight_rect_div, {
+            'position'    : 'absolute',
+            'left'        : (this.x - 2) + 'px',
+            'top'         : (this.y - 2) + 'px',
+            'width'       : (this.w + 2) + 'px',
+            'height'      : (this.h + 2) + 'px',
+            'borderColor' : '#ffff00',
+            'borderStyle' : 'solid',
+            'borderWidth' : '2px',
+            'opacity'     : 0.5,
+            'visibility'  : 'hidden'
+            
+        } );
+        // opacity is CSS 3, only recognized in newer Mozillas (as of 2005).
 
         
-        this.text_div.style.position = 'absolute';
-        this.text_div.style.left =this.x + 'px';            
-        this.text_div.style.top = (this.y +this.h + 5) + 'px';
-        this.text_div.style.padding = '5px';
-        text_node = document.createElement('span');
+        css( this.text_div, {
+            'position' : 'absolute',
+            'left'     : this.x + 'px',
+            'top'      : (this.y +this.h + 5) + 'px',
+            'padding'  : '5px'
+        } );
+        text_node = elm('span');
         text_node.className = 'note_text';
         // show newlines as br's 
         var text_lines = this.text.split("\n");
         for (var i in text_lines) {
-            text_node.appendChild( document.createTextNode(text_lines[i]) );
+            text_node.appendChild( txt(text_lines[i]) );
             if (i < (text_lines.length-1)) {
-                text_node.appendChild( document.createElement('br') );
+                text_node.appendChild( elm('br') );
             }
         }
         this.text_div.appendChild(text_node);
@@ -480,7 +549,7 @@ var Drag = {
         } else {
            this.text_div.style.background = '#ccffb0';
            if (this.id) { // if it was retrieved, not a new one we're creating
-                var author = document.createElement('i')
+                var author = elm('i')
                 // only way to get entities is to use innerHTML, apparently. use UNESCAPE!!
                 author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
                 this.text_div.appendChild(author);
@@ -496,66 +565,50 @@ var Drag = {
             clearTimeout(notes_hider_timeout);
             note.text_div.style.visibility = 'visible';
             note.highlight_rect_div.style.visibility = 'visible';
-        }
+        };
 
         this.hide = function() {
             note.text_div.style.visibility = 'hidden';
             note.highlight_rect_div.style.visibility = 'hidden';
-        }
+        };
 
 
         this.inner_rect_div.addEventListener( "mouseover", this.show, false );
         this.inner_rect_div.addEventListener( "mouseout", this.hide, false );
 
+        
         this.save = function() {
-            // gather all changed params. 
-            // Or? assume dims have been updated already, since mouse event must have happened.?
-            // XXX note.x
-            // XXX note.y
-            // XXX note.w
-            // XXX note.h
-            note.text = note.textarea.value;
-           
-            if (note.id != null) {
-                 
-                flickr_api_call( 
-                    "flickr.photos.notes.edit", 
-                    { 
-                        'note_id'   : note.id,
-                        'note_x'    : note.x,
+            args = {    'note_x'    : note.x,
                         'note_y'    : note.y,
                         'note_w'    : note.w,
                         'note_h'    : note.h,
-                        'note_text' : note.text
-                    }, 
-                    remake_notes 
-                );
+                        'note_text' : note.text  };
+                
+            var api_call;
+            if (note.id == null) {
+                api_call = "flickr.photos.notes.add",
+                args['photo_id'] = ps_photo_id;
             } else {
-
-                flickr_api_call(
-                    "flickr.photos.notes.add",
-                    {
-                        'photo_id'  : ps_photo_id,
-                        'note_x'    : note.x,
-                        'note_y'    : note.y,
-                        'note_w'    : note.w,
-                        'note_h'    : note.h,
-                        'note_text' : note.text
-                    },
-                    remake_notes
-                );
+                api_call = "flickr.photos.notes.edit";
+                args['note_id'] = note.id;
             }
             
-        }
+            flickr_api_call( api_call, args, remake_notes );
+            
+        };
 
+        this.save_new_text = function() {
+            note.text = note.textarea.value;
+            note.save();
+        };
 
         this.del = function() {
             flickr_api_call( "flickr.photos.notes.delete", { 'note_id' : note.id }, remake_notes );
-        }
+        };
 
         this.resizeBegin = function() { 
             note.text_div.style.visibility = 'hidden';
-        }
+        };
 
         this.resizeEnd = function() {
             // store new dims in the object.
@@ -565,12 +618,15 @@ var Drag = {
             note.h = parseInt(note.rect_div.style.height);
 
             // and move the note div back.
-            note.text_div.style.left = note.x + 'px';
-            note.text_div.style.top = (note.y + note.h + 5) + 'px';
-            note.text_div.style.visibility = 'visible';
-        }
+            css( note.text_div, {
+                'left'       : note.x + 'px',
+                'top'        : (note.y + note.h + 5) + 'px',
+                'visibility' : 'visible'
+            } );
+        };
 
-        this.edit = function() {
+
+        this.stopListeners = function() {
             // this note becomes "modal"... 
             // remove all listeners. 
             for (var i in Notes) {
@@ -582,21 +638,23 @@ var Drag = {
             // mouseover / mouseout for photo_img.
             photo_img.removeEventListener("mouseover", photo_img.reveal_notes, false );
             photo_img.removeEventListener("mouseout",  timeout_hide_notes, false );
+        };
 
-            note.textarea = document.createElement("textarea");
+        this.makeEditable = function() {
+            note.textarea = elm("textarea");
             note.textarea.style.width = '20em';
             note.textarea.style.height = '5em';
             // matching the style of the page.
             note.textarea.style.fontFamily = 'Arial, Helvetica, sans-serif';
             note.textarea.style.fontSize = '12px';
-            note.textarea.appendChild(document.createTextNode(note.text))
+            note.textarea.appendChild(txt(note.text))
 
             // want the author to appear on a separate line,
             // if there is one.
-            textarea_span = document.createElement('span');
+            textarea_span = elm('span');
             textarea_span.appendChild( note.textarea );
             if (note.author != ps_photo_character_id) {
-                textarea_span.appendChild(document.createElement('br'));
+                textarea_span.appendChild(elm('br'));
             }
             
             // swap note text for textarea
@@ -607,59 +665,91 @@ var Drag = {
                 }
             }
             
-            var button =  document.createElement("span");
+            var button =  elm("span");
             button.href = '#';
-            button.style.paddingLeft = '0.6em';
-            button.style.paddingRight = '0.6em';
-            button.style.paddingTop = '0.3em';
-            button.style.paddingBottom = '0.3em';
+            css( button, {
+                'paddingLeft'   : '0.6em',
+                'paddingRight'  : '0.6em',
+                'paddingTop'    : '0.3em',
+                'paddingBottom' : '0.3em'
+            } );
 
             var make_button = function(text, onclick, className) {
                 var b = button.cloneNode(false);
                 b.onclick = onclick;
                 b.className = className; 
-                b.appendChild( document.createTextNode( text ) );
+                b.appendChild( txt( text ) );
                 return b;
             }
             
-            // XXX use clone here to save time... 
-            var save_button = make_button('SAVE', note.save, 'Butt');
+            var save_button = make_button('SAVE', note.save_new_text, 'Butt');
             var cancel_button = make_button('CANCEL', remake_notes, 'DeleteButt');
             var delete_button = make_button('DELETE', note.del, 'DeleteButt');
            
-            buttons_div = document.createElement('div');
-            buttons_div.style.position = 'relative';
-            buttons_div.style.marginTop = '0.75em'; 
-            buttons_div.style.marginBottom = '0.5em'; 
+            buttons_div = elm('div');
+            css( buttons_div, {
+                'position'     : 'relative',
+                'marginTop'    : '0.75em',
+                'marginBottom' : '0.5em'
+            } );
             buttons_div.appendChild(save_button);
-            buttons_div.appendChild(document.createTextNode(' '));
+            buttons_div.appendChild(txt(' '));
             buttons_div.appendChild(cancel_button);
-            buttons_div.appendChild(document.createTextNode(' '));
+            buttons_div.appendChild(txt(' '));
             buttons_div.appendChild(delete_button);
 
             note.text_div.appendChild(buttons_div);
 
-            
+        };
+
+        
+        this.makeResizeBox = function() {    
             // dashed line, black dashes on white.
             note.highlight_rect_div.style.visibility = 'hidden';
-            note.inner_rect_div.style.left = note.x + 'px';
-            note.inner_rect_div.style.top = note.y + 'px';
-            note.inner_rect_div.style.width = note.w + 'px';
-            note.inner_rect_div.style.height = note.h + 'px';
-            note.inner_rect_div.style.borderStyle = 'dotted';
+            css( note.inner_rect_div, {
+                'left'        : note.x + 'px',
+                'top'         : note.y + 'px',
+                'width'       : note.w + 'px',
+                'height'      : note.h + 'px',
+                'borderStyle' : 'dotted'
+            } );
+            
+        };
+        
+
+        this.reposition = function() {
+            note.handle[0].style.left = note.x;
+            note.handle[0].style.top = note.y;
+            note.handle[1].style.left = note.x2 - handle_size - 1;
+            note.handle[1].style.top =  note.y;
+            note.handle[2].style.left = note.x2 - handle_size - 1;
+            note.handle[2].style.top = note.y2 - handle_size - 1;
+            note.handle[3].style.left = note.x;
+            note.handle[3].style.top = note.y2 - handle_size - 1;
+
+            for (r in note.rects) {
+                note.rects[r].style.left = note.x;
+                note.rects[r].style.top = note.y;
+                note.rects[r].style.width = note.w;
+                note.rects[r].style.height = note.h;
+            }
+        };
+
+        this.resize = function() {
+            note.w = note.x2 - note.x;  
+            note.h = note.y2 - note.y;
+            note.reposition();        
+        };
+
+        this.move = function() {
+            note.x2 = note.x + note.w;
+            note.y2 = note.y + note.h;
+            note.reposition();
+        };
             
 
-            var handle_size = 6;
+        this.makeResizeHandles = function() {
             
-            handle_div = document.createElement("div");
-            handle_div.style.width = handle_size + 'px';
-            handle_div.style.height = handle_size + 'px';
-            handle_div.style.position = 'absolute';
-            handle_div.style.borderColor = '#000000';
-            handle_div.style.borderStyle = 'solid';
-            handle_div.style.borderWidth = '1px';
-            handle_div.style.background = '#ffffff';
-
             note.handle = new Array();
             for (i=0; i<4; ++i) {
                 note.handle[i] = handle_div.cloneNode(true);
@@ -672,38 +762,10 @@ var Drag = {
 
             note.rects = [ note.inner_rect_div, note.rect_div ];
             
-            function position_handles() {
-                note.handle[0].style.left = note.x;
-                note.handle[0].style.top = note.y;
-                note.handle[1].style.left = note.x2 - handle_size - 1;
-                note.handle[1].style.top =  note.y;
-                note.handle[2].style.left = note.x2 - handle_size - 1;
-                note.handle[2].style.top = note.y2 - handle_size - 1;
-                note.handle[3].style.left = note.x;
-                note.handle[3].style.top = note.y2 - handle_size - 1;
-
-                for (r in note.rects) {
-                    note.rects[r].style.left = note.x;
-                    note.rects[r].style.top = note.y;
-                    note.rects[r].style.width = note.w;
-                    note.rects[r].style.height = note.h;
-                }
-            }
-
-            function resize() {
-                note.w = note.x2 - note.x;  // alert("x2 = " + note.x2 + ", w = " + note.w)
-                note.h = note.y2 - note.y;
-                position_handles();        
-            }
-
-            function move() {
-                note.x2 = note.x + note.w;
-                note.y2 = note.y + note.h;
-                position_handles();
-            }
+            note.resize(); 
             
-            resize(); 
-            
+            // the following is somewhat repetitive. maybe I don't understand javascript
+            // scoping and closures, but I couldn't get Drag to work as methods of a Note.
             Drag.init(
                 note.handle[0], 
                 function() { return [
@@ -714,7 +776,7 @@ var Drag = {
                 function() { 
                     note.x = parseInt(note.handle[0].style.left);
                     note.y = parseInt(note.handle[0].style.top);
-                    resize(); 
+                    note.resize(); 
                 },
                 note.resizeEnd
             );
@@ -729,7 +791,7 @@ var Drag = {
                 function() { 
                     note.x2 = parseInt(note.handle[1].style.left) + handle_size + 1;
                     note.y = parseInt(note.handle[1].style.top);
-                    resize(); 
+                    note.resize(); 
                 },
                 note.resizeEnd
             );
@@ -745,12 +807,10 @@ var Drag = {
                 function() { 
                     note.x2 = parseInt(note.handle[2].style.left) + handle_size + 1;
                     note.y2 = parseInt(note.handle[2].style.top) + handle_size + 1;
-                    resize(); 
+                    note.resize(); 
                 },
                 note.resizeEnd
             );
-
-
 
             Drag.init(
                 note.handle[3], 
@@ -762,12 +822,15 @@ var Drag = {
                 function() { 
                     note.x  = parseInt(note.handle[3].style.left);
                     note.y2 = parseInt(note.handle[3].style.top) + handle_size + 1;
-                    resize(); 
+                    note.resize(); 
                 },
                 note.resizeEnd
             );
 
+        };
 
+        this.makeDraggable = function() {
+            
             Drag.init(
                 note.inner_rect_div,
                 function() { return [  
@@ -777,10 +840,19 @@ var Drag = {
                 function() {
                     note.x = parseInt(note.inner_rect_div.style.left);
                     note.y = parseInt(note.inner_rect_div.style.top);
-                    move();
+                    note.move();
                 },
                 note.resizeEnd
             );
+        }
+
+        
+        this.edit = function() {
+            note.stopListeners();
+            note.makeEditable();            
+            note.makeResizeBox();
+            note.makeResizeHandles();
+            note.makeDraggable();
         }
         
         // you can edit the note if: 
@@ -797,9 +869,9 @@ var Drag = {
     function notes_init() {
         // using spans instead of divs so as not to trigger block element.
         // n.b. these spans are global to this GM extension.
-        notes_span = document.createElement('span');
+        notes_span = elm('span');
         notes_span.id = 'notes';
-        texts_span = document.createElement('span');
+        texts_span = elm('span');
         texts_span.id = 'texts';        
 
         photo_div.insertBefore(notes_span,note_insert_point);
@@ -809,8 +881,11 @@ var Drag = {
         photo_img.addEventListener( "mouseover", photo_img.reveal_notes, false );
         
         photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
-    } 
-               
+
+        prep_resizable_notes();
+   }
+   
+              
     function notes_retrieve(req, rsp) {
         
         notes_init();
@@ -886,7 +961,17 @@ var Drag = {
 
     // ---------------------------------------------
     // TOOLBAR
-    var button = new Array();
+    var toolbar = new Array();
+    function toolbar_button( str, href, onclick ) {
+        var b = elm('a');
+        b.href = href;
+        if (onclick != null) {
+            b.onclick = onclick;
+        }
+        b.appendChild( txt(str) );
+        toolbar.push(b);
+        return b;
+    }
     
     // the toolbar changes if the user owns the photo
     var is_owner = photo_hash[ps_photo_id].isOwner;
@@ -897,11 +982,7 @@ var Drag = {
     // add note
     // appears to use the same perms as adding tags
     if (can_tag) {
-        var note_button = document.createElement('a');
-        note_button.href = '#';
-        note_button.onclick = photo_add_note;
-        note_button.appendChild( document.createTextNode('Add Note') );
-        button.push(note_button);
+        toolbar_button( 'Add Note', '#', photo_add_note );
     }
     
 
@@ -909,37 +990,30 @@ var Drag = {
     // sizes
 
     if (ps_candownload) {
-        var size_button = document.createElement('a');
-        
         // swf_zoom() is defined in page, picks the best size (large or original)       
-        size_button.href = '#';
-        size_button.onclick = swf_zoom; 
-        size_button.appendChild( document.createTextNode('Sizes') );
-        
         // but if that ever stops working, just set .href to :
         // '/photo_zoom.gne?id=' + ps_photo_id + '&size=m';
-        button.push(size_button);
-
+        toolbar_button( 'Sizes', '#', swf_zoom );
     } 
 
 
     // ---------------------------------------------
     // blog this    
     if (global_nsid) { // if logged in
-        var blog_button = document.createElement('a');
-        blog_button.href = 'http://flickr.com/blog.gne?photo=' + ps_photo_id;
-        blog_button.appendChild( document.createTextNode('Blog This') );
-        button.push(blog_button);
+        toolbar_button( 
+            'Blog This', 
+            'http://flickr.com/blog.gne?photo=' + ps_photo_id
+        );
     }
    
 
     // ---------------------------------------------
     // send to group
     if (is_owner) {
-        var sgrp_button = document.createElement('a');
-        sgrp_button.href = 'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id;
-        sgrp_button.appendChild( document.createTextNode('Send to Group') );
-        button.push(sgrp_button);
+        toolbar_button(
+            'Send to Group',
+            'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id
+        )
     }
 
 
@@ -949,38 +1023,39 @@ var Drag = {
     var fav_div;
      
     function fave_init() {
-        fave_div = document.createElement('div');
+        fave_div = elm('div');
         fave_div.id = 'fave_star';
-        fave_div.style.cssFloat = 'right';
-        fave_div.style.color = '#ff00ff';
-        fave_div.style.fontSize = '0.8em';
-        fave_div.style.textAlign = 'center';
-        fave_div.style.position = 'relative';
-        fave_div.style.top = '2.5em';
-        fave_div.style.visibility = 'hidden';
+        css( fave_div, {
+            'cssFloat'   : 'right',
+            'color'      : '#ff00ff',
+            'fontSize'   : '0.8em',
+            'textAlign'  : 'center',
+            'position'   : 'relative',
+            'top'        : '2.5em',
+            'visibility' : 'hidden'
+        } );
          
-        var fave_star = document.createElement('span'); 
+        var fave_star = elm('span'); 
         fave_star.style.fontSize = '4em';
         fave_star.style.lineHeight = '0px';
-        fave_star.appendChild( document.createTextNode('*'));
+        fave_star.appendChild( txt('*'));
 
         fave_div.appendChild(fave_star)
-        fave_div.appendChild( document.createElement('br') );
+        fave_div.appendChild( elm('br') );
         
-        var t_span = document.createElement('span');
-        t_span.appendChild(document.createTextNode('FAVE'));
+        var t_span = elm('span');
+        t_span.appendChild(txt('FAVE'));
         t_span.style.lineHeight = '1em';
         
         fave_div.appendChild( t_span );
                 
         h1  = swf_td.getElementsByTagName('h1').item(0);
 
-        var h1_fave = document.createElement('div')
+        var h1_fave = elm('div')
         h1_fave.style.width = photo_img.width + 7; // to adjust for 7px margin on left.
         h1_fave.appendChild(fave_div);
         h1_fave.appendChild(h1);
             
-        // swf_td.style.position = 'relative';
         swf_td.insertBefore(h1_fave, photo_div); 
     }
 
@@ -999,7 +1074,7 @@ var Drag = {
         fave_div.style.visibility = 'visible';
         // change the text... 
         fave_button.replaceChild( 
-            document.createTextNode('Remove from Favorites'),
+            txt('Remove from Favorites'),
             fave_button.firstChild
         );
         fave_button.onclick = photo_unfave;
@@ -1008,7 +1083,7 @@ var Drag = {
     function draw_unfave() {
         fave_div.style.visibility = 'hidden';
         fave_button.replaceChild( 
-            document.createTextNode('Add to Favorites'),
+            txt('Add to Favorites'),
             fave_button.firstChild
         );
         fave_button.onclick = photo_fave;
@@ -1017,11 +1092,11 @@ var Drag = {
  
     if (!is_owner && global_nsid) { // not owner, but logged in...
         fave_init();
-        var fave_button = document.createElement('a');
-        fave_button.href = '#';
-        fave_button.appendChild( document.createTextNode('Add to Favorites') );
-        fave_button.onclick = photo_fave;
-        button.push(fave_button)
+        fave_button = toolbar_button(
+            'Add to Favorites',
+            '#',
+            photo_fave
+        );
         if (ps_isfav) {
             draw_fave();
         } else {
@@ -1037,8 +1112,8 @@ var Drag = {
     function rotation_ok() {
         // If we make the browser forget the dims, 
         // we force a clean reflow when once the new src has loaded.
-        photo_img.removeAttribute('height')
-        photo_img.removeAttribute('width')
+        photo_img.removeAttribute('height');
+        photo_img.removeAttribute('width');
 
         // cheesy random argument added so it does not hit cache.  
         photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
@@ -1050,17 +1125,9 @@ var Drag = {
         flickr_api_call( "flickr.photos.transform.rotate", { 'photo_id':ps_photo_id, 'degrees':90 }, rotation_ok );
     }
 
-    if (is_owner) {    
-        var rota_button = document.createElement('a');
-        rota_button.href = '#';
-        rota_button.onclick = photo_rotate;
-        rota_button.appendChild( document.createTextNode('Rotate') );
-        button.push(rota_button);
+    if (is_owner) {
+        toolbar_button('Rotate','#',photo_rotate);
     }
-
-
-    
-
 
 
     // ---------------------------------------------
@@ -1089,11 +1156,7 @@ var Drag = {
 
 
     if (is_owner) {
-        var dele_button = document.createElement('a');
-        dele_button.href = '#';
-        dele_button.onclick = photo_delete;
-        dele_button.appendChild( document.createTextNode('Delete') );
-        button.push(dele_button);
+        toolbar_button('Delete', '#', photo_delete)
     }
 
 
@@ -1105,27 +1168,31 @@ var Drag = {
     // toolbar!
     
     
-    if (button.length > 0) {
-        var toolbar_p = photo_div.appendChild(document.createElement('p'));
-        toolbar_p.style.color = '#666666';
-        toolbar_p.appendChild( document.createTextNode( 'This Photo: ' ));
+    if (toolbar.length > 0) {
+        var p = elm('p');
+        photo_div.appendChild(p);
+        p.style.color = '#666666';
+        p.appendChild( txt( 'This Photo: ' ));
     
-        for (var i = 0; i < button.length; ++i ) {
+        for (var i = 0; i < toolbar.length; ++i ) {
             
-            toolbar_p.appendChild(button[i]);
+            p.appendChild(toolbar[i]);
 
-            if (i+1 < button.length) {
-                var bullet = document.createElement('span');
-                // bullet.appendChild( document.createTextNode( unescape('&bull;') ) );
+            if (i+1 < toolbar.length) {
+                var bullet = elm('span');
+                // bullet.appendChild( txt( unescape('&bull;') ) );
                 // how does one get an entityReference from HTML? unescape doesn't work.
-                // bullet.innerHTML = '&bull;';
+                bullet.innerHTML = '&bull;';
                 bullet.style.margin = '0em 0.3em 0em 0.3em';
                 bullet.style.color = '#b0b0b0';
            
-                toolbar_p.appendChild( bullet );
+                p.appendChild( bullet );
             }
         }
     }
 
 })();
+
+
+
 
