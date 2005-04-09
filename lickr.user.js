@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
 version: 0.2   
-$Id: lickr.user.js,v 1.20 2005-04-09 08:40:27 brevity Exp $
+$Id: lickr.user.js,v 1.21 2005-04-09 23:13:51 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -538,21 +538,27 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             'padding'  : '5px',
         } );
  
-        if (this.text.length > 30) {
-            this.text_div.style.width = '250px';
-        }
          
         text_node = elm('span');
         text_node.className = 'note_text';
         // show newlines as br's 
         var text_lines = this.text.split("\n");
+        this.line_length = 0;
         for (var i in text_lines) {
+            // max_length useful for figuring out text div width.
+            if (text_lines[i].length > this.line_length) {
+                this.line_length = text_lines[i].length;
+            }
             text_node.appendChild( txt(text_lines[i]) );
             if (i < (text_lines.length-1)) {
                 text_node.appendChild( elm('br') );
             }
         }
         this.text_div.appendChild(text_node);
+        
+        if (this.line_length > 30) {
+            this.text_div.style.width = '250px';
+        }
        
         // if the note author is the person who made the note, yellow without signature
         // alert( 'note.author = ' +this.author + ' ps_nsid = ' + ps_nsid );
