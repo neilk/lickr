@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
 version: 0.2   
-$Id: lickr.user.js,v 1.19 2005-04-08 09:39:42 brevity Exp $
+$Id: lickr.user.js,v 1.20 2005-04-09 08:40:27 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -419,9 +419,10 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             'borderColor' : '#000000',
             'borderStyle' : 'solid',
             'borderWidth' : '1px',
-            'background'  : '#ffffff'
+            'background'  : '#e0e0e0'
         } );
-    } 
+    }
+        
 
 
 
@@ -510,7 +511,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             'height'      : (this.h - 2) + 'px',
             'borderColor' : '#ffffff',
             'borderStyle' : 'solid',
-            'borderWidth' : '1px'
+            'borderWidth' : '1px',
         } );
         
         // XXX what if this is negative?
@@ -523,19 +524,24 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             'borderColor' : '#ffff00',
             'borderStyle' : 'solid',
             'borderWidth' : '2px',
+            // opacity is CSS 3, only recognized in newer Mozillas (as of 2005).
             'opacity'     : 0.5,
             'visibility'  : 'hidden'
             
         } );
-        // opacity is CSS 3, only recognized in newer Mozillas (as of 2005).
 
-        
+
         css( this.text_div, {
             'position' : 'absolute',
             'left'     : this.x + 'px',
-            'top'      : (this.y +this.h + 5) + 'px',
-            'padding'  : '5px'
+            'top'      : (this.y + this.h + 5) + 'px',
+            'padding'  : '5px',
         } );
+ 
+        if (this.text.length > 30) {
+            this.text_div.style.width = '250px';
+        }
+         
         text_node = elm('span');
         text_node.className = 'note_text';
         // show newlines as br's 
@@ -615,8 +621,28 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
         this.resizeBegin = function() { 
             note.text_div.style.visibility = 'hidden';
+
+            /* stop listening for cursor changes any note elements */
+            for (i=0; i<4; ++i) {
+                note.handle[i].style.cursor = null; //removeAttribute('cursor');
+            }
+            note.inner_rect_div.style.cursor = null; //removeAttribute('cursor');
+            
         };
 
+        var handleNames = [ 'nw', 'ne', 'se', 'sw' ];
+        this.setResizeCursors = function() {
+            /* start listening for cursor changes any note elements */
+            for (i=0; i<4; ++i) {
+                nh = note.handle[i];
+                curs = handleNames[i] + '-resize';
+                nh.style.cursor = curs;
+                nh.addEventListener( "mousedown", cursor_on(curs), false);
+                nh.addEventListener( "mouseup", cursor_off, false );
+            }
+            note.inner_rect_div.style.cursor = 'move';
+        }
+        
         this.resizeEnd = function() {
             // store new dims in the object.
             note.x = parseInt(note.rect_div.style.left);
@@ -630,6 +656,9 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                 'top'        : (note.y + note.h + 5) + 'px',
                 'visibility' : 'visible'
             } );
+
+            // begin listening for cursor changes again
+            note.setResizeCursors();
         };
 
 
@@ -650,6 +679,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         this.makeEditable = function() {
             note.textarea = elm("textarea");
             note.textarea.style.width = '20em';
+            note.text_div.style.width = '21em';
             note.textarea.style.height = '5em';
             // matching the style of the page.
             note.textarea.style.fontFamily = 'Arial, Helvetica, sans-serif';
@@ -713,12 +743,15 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         this.makeResizeBox = function() {    
             // dashed line, black dashes on white.
             note.highlight_rect_div.style.visibility = 'hidden';
+            note.rect_div.style.borderColor = '#404040';
             css( note.inner_rect_div, {
                 'left'        : note.x + 'px',
                 'top'         : note.y + 'px',
                 'width'       : note.w + 'px',
                 'height'      : note.h + 'px',
-                'borderStyle' : 'dotted'
+                'borderColor' : '#e0e0e0',
+                'borderStyle' : 'dashed', // 'dotted'
+                'cursor'      : 'move'
             } );
             
         };
@@ -727,12 +760,12 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         this.reposition = function() {
             note.handle[0].style.left = note.x;
             note.handle[0].style.top = note.y;
-            note.handle[1].style.left = note.x2 - handle_size - 1;
+            note.handle[1].style.left = note.x2 - handle_size;
             note.handle[1].style.top =  note.y;
-            note.handle[2].style.left = note.x2 - handle_size - 1;
-            note.handle[2].style.top = note.y2 - handle_size - 1;
+            note.handle[2].style.left = note.x2 - handle_size;
+            note.handle[2].style.top = note.y2 - handle_size;
             note.handle[3].style.left = note.x;
-            note.handle[3].style.top = note.y2 - handle_size - 1;
+            note.handle[3].style.top = note.y2 - handle_size;
 
             for (r in note.rects) {
                 note.rects[r].style.left = note.x;
@@ -754,19 +787,24 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             note.reposition();
         };
             
+        function cursor_on(curs) {
+            return function() { 
+                document.body.style.cursor = curs; 
+            }
+        }
+
+        function cursor_off() {                
+            document.body.style.cursor = 'default';
+        }
 
         this.makeResizeHandles = function() {
-            
             note.handle = new Array();
             for (i=0; i<4; ++i) {
-                note.handle[i] = handle_div.cloneNode(true);
-                notes_span.appendChild(note.handle[i]);
+                var nh = note.handle[i] = handle_div.cloneNode(true);
+                notes_span.appendChild(nh);
             }
+            note.setResizeCursors();
            
-            // handles at corners: 
-            // 0 1
-            // 3 2
-
             note.rects = [ note.inner_rect_div, note.rect_div ];
             
             note.resize(); 
@@ -776,8 +814,8 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             Drag.init(
                 note.handle[0], 
                 function() { return [
-                    0, note.x2 - 2*handle_size - 1,
-                    0, note.y2 - 2*handle_size - 1
+                    0, note.x2 - 2*handle_size - 1, 
+                    0, note.y2 - 2*handle_size - 1 
                 ]; },
                 note.resizeBegin,
                 function() { 
@@ -791,12 +829,12 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             Drag.init(
                 note.handle[1], 
                 function() { return [
-                    note.x + handle_size + 1,  photo_img.width - handle_size - 1,
-                    0, note.y2 - 2*handle_size - 1
+                    note.x + handle_size + 1,  photo_img.width - handle_size,
+                    0, note.y2 - 2*handle_size - 1 
                 ] },
                 note.resizeBegin,
                 function() { 
-                    note.x2 = parseInt(note.handle[1].style.left) + handle_size + 1;
+                    note.x2 = parseInt(note.handle[1].style.left) + handle_size;
                     note.y = parseInt(note.handle[1].style.top);
                     note.resize(); 
                 },
@@ -807,13 +845,13 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             Drag.init(
                 note.handle[2], 
                 function() {  return [
-                    note.x + handle_size + 1, photo_img.width - handle_size - 1,
-                    note.y + handle_size + 1, photo_img.height - handle_size - 1
+                    note.x + handle_size + 1, photo_img.width - handle_size,
+                    note.y + handle_size + 1, photo_img.height - handle_size
                 ] },
                 note.resizeBegin,
                 function() { 
-                    note.x2 = parseInt(note.handle[2].style.left) + handle_size + 1;
-                    note.y2 = parseInt(note.handle[2].style.top) + handle_size + 1;
+                    note.x2 = parseInt(note.handle[2].style.left) + handle_size;
+                    note.y2 = parseInt(note.handle[2].style.top) + handle_size;
                     note.resize(); 
                 },
                 note.resizeEnd
@@ -822,13 +860,13 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             Drag.init(
                 note.handle[3], 
                 function() { return [
-                    0, note.x2 - 2*handle_size - 1,
-                    note.y + handle_size + 1, photo_img.height - handle_size - 1
+                    0, note.x2 - 2*handle_size - 1, 
+                    note.y + handle_size + 1, photo_img.height - handle_size
                 ] },
                 note.resizeBegin,
                 function() { 
                     note.x  = parseInt(note.handle[3].style.left);
-                    note.y2 = parseInt(note.handle[3].style.top) + handle_size + 1;
+                    note.y2 = parseInt(note.handle[3].style.top) + handle_size;
                     note.resize(); 
                 },
                 note.resizeEnd
@@ -957,7 +995,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         }
         var n = new Note( {
             x: 10, y: 10, w: 32, h: 32,
-            text: 'Note text here.',
+            text: 'Add your note here.',
             author: global_nsid
         } );
         notes_span.style.visibility = 'visible';
