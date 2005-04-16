@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
 version: 0.2   
-$Id: lickr.user.js,v 1.21 2005-04-09 23:13:51 brevity Exp $
+$Id: lickr.user.js,v 1.22 2005-04-16 22:29:37 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -87,7 +87,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
     function xpath_single_node(context_node, xpath) {
         return  document.evaluate( 
-                     xpath,                              
+                     xpath + '[1]',                              
                      context_node, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
                 ).singleNodeValue;
     }
@@ -242,38 +242,51 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     // --------------------------------------------------------------------------
     // and now, we begin
 
-    var swf_td     = xpath_single_node(document, "//td[@class='photoswftd'][1]");
+    var swf_td     = xpath_single_node(document, "//td[@class='photoswftd']");
     if (swf_td == null) { return; }
 
     
-    // XXX this is only useful to find a place to insert the img now... probably a better way
-    // why does innerHTML work for that other guy, anyway.
-    var photo_insert_point = xpath_single_node(swf_td, "noscript/following-sibling::script[1]"); 
-   
-    // okay, let's blow away the swf 
-    // if FF is slow to remove the Flash, it will take even LONGER to abort/remove it.
-    // ideally we should prevent the Flash object from ever being added to the DOM, but
-    // no one yet knows how to prevent an inline JS from running.
-    var swf = xpath_single_node(swf_td, "//object[1]").parentNode;
-    swf_td.removeChild(swf);
+    var photo_div;
+    var photo_img;
     
-    // okay let's get inserting
+    // Flickr's writeSwfOrImg() will, depending on Flash detection, insert Flash object or a photo.
+    // it would be nice if we could stop writeSwfOrImg from executing, 
+    // but that seems to be impossible. 
+
+    // Flash 
+    if (photo_div = xpath_single_node(swf_td, "div[@id='photoImgDiv" + ps_photo_id + "']")) {
+        // n.b. if this breaks, another way to detect photo_div; look for object, get parentNode.
+        
+        // remove the swf.
+        photo_div.removeChild(xpath_single_node(photo_div, "object"));
+        
+        photo_img = elm('img');
+        photo_img.src = 'http://photos' + ps_photo_server + '.flickr.com/' 
+                        + ps_photo_id + '_' + ps_photo_secret + '.jpg';
+        
+    // no Flash 
+    } else { 
+        
+        // the user does not have Flash, so a <div> with the medium size image has conveniently 
+        // been written to the dom for us.
     
-    var photo_div = elm('div');
+        no_swf_div = xpath_single_node(swf_td, "div");
+        photo_img = xpath_single_node(no_swf_div, "img");
+        
+        photo_div = elm('div');
+        
+        swf_td.replaceChild(photo_div, no_swf_div); 
+        
+    }
+    
+    // if underlying page has changed so we couldn't parse it, give up.
+    if (! photo_img ) { return; }
+    
+     
+    // styling...  
     css( photo_div, { 'position':'relative', 'margin':'5px'  });
       
-    //photo_div.style.margin = '5px'; // lines up with other elements better.
 
-    // and show the div!
-    swf_td.insertBefore(photo_div, photo_insert_point);
-
-    // the image
-    // all the ps_* vars are defined in a script on the photo pages
-    
-    var photo_img = elm('img');
-    photo_img.style.borderColor = '#000000';
-    photo_img.style.borderWidth = 1;
-    
     // having real image width and height eliminates dancing at page load
     // n.b. the toolbar in the flash file forces a minimum width, so we can't know the true width of
     // narrow photos. The following is a compromise that generally produces the least dancing
@@ -284,16 +297,16 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     if (ps_w_flash > ps_w_flash_min) {
         photo_img.width = ps_w_flash - ps_w_flash_extra;
     }
-    photo_img.height = ps_h_flash - ps_h_flash_extra; 
+    photo_img.height = ps_h_flash - ps_h_flash_extra;  
    
-    var img_url = 'http://photos' + ps_photo_server + '.flickr.com/' 
-                   + ps_photo_id + '_' + ps_photo_secret + '.jpg';
-    photo_img.src = img_url;
-    
+    photo_img.style.borderColor = '#000000';
+    photo_img.style.borderWidth = 1;
+   
+    // and, insert the image 
     photo_div.appendChild(photo_img);
     
-    var note_insert_point = elm('span');
-    photo_div.appendChild(note_insert_point);
+    
+    var orig_photo_img_src = photo_img.src; // saved in pristine state for photo_rotate
 
 
     // ---------------------------------------------
@@ -303,6 +316,8 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             authorname="Bees" x="10" y="10"
             w="50" h="50">foo</note> */
  
+    var note_insert_point = elm('span');
+    photo_div.appendChild(note_insert_point);
 
 
     // Drag is based on DOM-Drag by Aaron Boodman.
@@ -990,7 +1005,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     
     // Here's where it all begins.
 
-    if ( xpath_single_node( document, "//span[@id='noteCount'][1]" ) != null ) {
+    if ( xpath_single_node( document, "//span[@id='noteCount']" ) != null ) {
         make_notes();
     }
     
@@ -1025,7 +1040,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     
     // the toolbar changes if the user owns the photo
     var is_owner = photo_hash[ps_photo_id].isOwner;
-    var can_tag = (xpath_single_node(document,"//div[@id='tagadder'][1]") != null);
+    var can_tag = (xpath_single_node(document,"//div[@id='tagadder']") != null);
     
 
     // --------------------------------------------
@@ -1166,7 +1181,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         photo_img.removeAttribute('width');
 
         // cheesy random argument added so it does not hit cache.  
-        photo_img.src = img_url + '?.rand=' + Math.floor(Math.random()*1000)
+        photo_img.src = orig_photo_img_src + '?.rand=' + Math.floor(Math.random()*1000)
 
         remake_notes();
     }
