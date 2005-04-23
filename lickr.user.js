@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface.
          
 version: 0.21   
-$Id: lickr.user.js,v 1.23 2005-04-16 22:30:23 brevity Exp $
+$Id: lickr.user.js,v 1.24 2005-04-23 22:06:54 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -503,8 +503,6 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         this.inner_rect_div = elm('div');
         notes_span.appendChild(this.inner_rect_div);
 
-        this.text_div = elm('div');
-        texts_span.appendChild(this.text_div);
 
        
         // styling them all...
@@ -546,55 +544,215 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         } );
 
 
-        css( this.text_div, {
+        
+        // ------------
+        
+        var note = this;  // to disambiguate "this" inside these next functions.
+
+        // TEXTS
+            
+        var note_author_style = new Object;
+        var note_other_style = new Object;
+
+
+        note_author_style.color = '#fff4ad';
+            
+        note_author_style['img_nw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%06%08%06%00%00%00%0F%0E%84v%00%00%00JIDATx%DAcd%80%82%1F%EF%B7i%B2%B2%FC-a%F8%FF%C7%8D%89%E9%9F%0CH%8C%11D%FC%F9%B4-%9C%99%E9%FB%22%20%93%8D%01%090%82t%B0%B3~%BF%80.%01%02L%60%A3%B0H%80%25Av0%E0%00L0%CB%B1%01%00P%F4%15%C6y%09%DA%F8%00%00%00%00IEND%AEB%60%82"
+                
+
+        note_author_style['img_ne'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%06%08%06%00%00%00%11%C7%B4%C5%00%00%00%85IDATx%DAc%F8%F3q%DD%93%AF%AF%D7-%3Aq%60%921%03%03%03%17%10%B3%021%13%1032%C0%C0%FF%2Fk%FF%83%F0%DF%CFk~%1D%DD%DB%9F%0F%14%92%00bn%20f%81)d%82)fbdd57%95%E9)%C8%0ErFR%C8%0CR%08W%04%02%CCLL%2C%91%E1%B6Y%40%A62%10%8B%001%07H%3F%0B%03%1APU%14%D5%85*%FA%0E%C4_%81%F8%17%13%BA%22AAN%5E%A8u%E2%40%0Cb%B3%00%00%97Y%1E%F5%10%EC%B1%AE%00%00%00%00IEND%AEB%60%82"
+
+        note_author_style['img_se'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%09%08%06%00%00%00%E0%91%06%10%00%00%00%AAIDATx%DAc%FC%FFe%ED%7F%06%24%F0%E6%ED%D7o%A2%F2q%8B%81%CC%1B%40%7C%02D31%A0%81%93g%EE%3D%07R%7F%91%F0%7F%14E%BF%FF%FC%FD%D7%DA%B5%EA*%90%F9%0B%88%BFC%E9%7FL%C8%0AJ%AB%97%1F%3F~%F2%DAk%20%F7%13%10%7F%00%E2o%20%D3X%40n%00Y%012%01%AA%E0%3D%10%BF%00%E2%97%40%FC%19%88%FF0%02%89%19P%BB%7FAM%00)%B8%0B%C5%20%85%DFY%80%C4u%A8%A2%1FP%2B%40%8A%40%8E%7F%03%15%FB%07Rt%12%C9%A4oP%2B%40%F8'%CCw%20%EB%04%40%0C%90%0E%A8%E0o%98%24%143%00%00%E9%A8%5C%02%D0Q%17%08%00%00%00%00IEND%AEB%60%82"
+
+        note_author_style['img_sw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%09%08%06%00%00%00%FEX6%A3%00%00%00%82IDATx%DAc%FC%F3q%DD%13f%E6%FF%D2%0CX%00%D3%CF_%0C%FB%18p%00%A6%CBW%9FL%FC%F7%FF%FFo%AC%92%16%0Ey%D7O%9Cz%5C%FA%F7%DF%BF%3F%E8%92%CC%40%CC8o%D1%CE%7B%9F%3E%FD%BD%24%24%2C%20%C1%C5%C1%26%C0%C9%C9%CA%0E%92d%84*%E0%04bq%20V%86b%09%20%E6c%86%9A%F0%0F%88A%C6%FE%04%E2oP%FC%99%11*%093%01d%1C%2F%14s1%22%D9%CF%88%A4%88%15D%03%00%C4%93%24%CC%B2%FADq%00%00%00%00IEND%AEB%60%82"
+
+        note_author_style['img_e'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%01%08%06%00%00%00%0C%C2%84%7D%00%00%00%1CIDATx%DAc%FC%FFe%ED%7F%064%C0%C8%13%3C%0DH%DD%00%E2%13%40%7C%0B%00%96%A1%07%11U%2B%F8W%00%00%00%00IEND%AEB%60%82"
+
+        note_author_style['img_s'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%01%00%00%00%09%08%06%00%00%00%F3FF%E4%00%00%00%1EIDATx%DAc%F8%FFe%ED%7F%26%06%20%40%23%40%60%263%90P%05%11%8C%20%E2%2B%00%A7%B6%05e%D8%14%81X%00%00%00%00IEND%AEB%60%82"
+
+
+
+        note_other_style['color'] = '#cdffb0';
+
+        note_other_style['img_nw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%06%08%06%00%00%00%0F%0E%84v%00%00%00TIDATx%DAcd%80%82%AB%DF%B6i%FEa%FBW%F2%8B%E1%8F%1B%133%83%0CH%8C%11D%DC%F9%B9-%FC%3D%EB%CFEL%8C%8Cl%0CH%80%F1%E1%D7m%9A%AF9%7F%5E%60D%93%00%01%A6_l%FFK%B0I%80%25%BF1%FEvc%C0%01%98%FE%40-%C7%06%00mq%18JC%94%14%8F%00%00%00%00IEND%AEB%60%82"
+
+        note_other_style['img_ne'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%06%08%06%00%00%00%11%C7%B4%C5%00%00%00%88IDATx%DAc8%F7%7B%FD%93K%9F%D7%2F%DAzt%921%03%03%03%17%10%B3%021%13%1032%40%01%D3%7F%16F%E9%DF%3C%8C%B1%E2%E62%C77%1C%EEO%05%8A%09%031'%103%C3%142%C1T323%B1J%5B%C8%F5%A4%E6%059%03%B9%12%40%CC%0DS%08W%04%D6%C1%C2%CC%E2%15e%97%05d*%03%B1%08%10s%80%85%19%D0%80%A8%AA%A8.T%D1w%20%FE%0A%C4%BF%98%D0%15q%0Aq%F3B%AD%13%07b%10%9B%05%006p%175%08%93%F9%F5%00%00%00%00IEND%AEB%60%82"
+
+        note_other_style['img_se'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%09%08%06%00%00%00%E0%91%06%10%00%00%00%AAIDATx%DAc%3C%FB%7F%C3%7F%06%24%F0%E9%F5%E7o%8Eb%B1%8B%81%CC%1B%40%7C%02D31%A0%81k%A7%EE%3D%07R%7F%91%F0%7F%14E%BF~%FD%F97%A7u%E5U%10%13%88%BFC%E9%7FL%C8%0A%A6%97-%3D~%FE%F8%B5%D7%20%5B%81%F8%03%10%7F%03%99%C6%F2%1E%E8%86%9B%40%2B%40%26%40%15%BC%07%E2%17%40%FC%12%88%3F%03%F1%1FF%201%03j%F7%2F%A8%09%20%05w%A1%18%A4%F0%3B%0B%90%B8%0EU%F4%03j%05H%11%C8%F1o%A0b%FF%40%8AN%22%99%F4%0Dj%05%08%FF%84%F9%0Ed%9D%00%88%01%D2%01%15%FC%0D%93%84b%06%00%2F%B0%5C%5B%D5%DD%B3%9C%00%00%00%00IEND%AEB%60%82"
+
+        note_other_style['img_sw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%09%08%06%00%00%00%FEX6%A3%00%00%00%82IDATx%DAc%3C%F7%7B%FD%93%FF%2C%8C%D2%0CX%00%D3%FF%9F%0C%FB%18p%00%A6%7B%97%1EO%FC%FB%F7%DFo%AC%92%A1Vy%D7%EF%9CxX%FA%E7%CF%DF%3F%E8%92%CC%40%CC%B8v%DE%CE%7B%7F%3E%FD%B9%24(%C4%2F%C1%C2%C9*%C0%C1%C9%C6%0E%92d%84*%E0%04bq%20V%86b%09%20%E6c%86%9A%F0%0F%88A%C6%FE%04%E2oP%FC%99%11*%093%01d%1C%2F%14s1%22%D9%CF%88%A4%88%15D%03%00%C6%D0%24%DE%15%EE%8B%14%00%00%00%00IEND%AEB%60%82"
+
+        note_other_style['img_e'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%01%08%06%00%00%00%0C%C2%84%7D%00%00%00%1CIDATx%DAc%3C%FB%7F%C3%7F%064%60%CC%180%0DH%DD%00%E2%13%40%7C%0B%00%93%D1%07%11y~W%C7%00%00%00%00IEND%AEB%60%82"
+
+        note_other_style['img_s'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%01%00%00%00%09%08%06%00%00%00%F3FF%E4%00%00%00%1EIDATx%DAc8%FB%7F%C3%7F%26%06%20%40%23%40%60%263%90P%05%11%8C%20%E2%2B%00%A1u%05A%3C%08%7D%FC%00%00%00%00IEND%AEB%60%82";
+
+        var td_proto = elm('td');
+        td_proto.style.margin = 0;
+        td_proto.style.padding = 0;
+        
+        var tbl_proto = elm('table')
+        tbl_proto.cellPadding = 0;
+        tbl_proto.cellSpacing = 0;
+        
+        
+            
+        function mk_img(w,h) {
+            var img = elm('img');
+            img.width = w;
+            img.height = h;
+            img.style.border = '0px';// !important";
+            return img;
+        }
+            
+            
+        function note_proto() {
+           
+            var p = new Object();
+             
+            p.div = elm('div');
+            p.div.id = 'note';
+            p.div.style.width = '250px';
+           
+            var tbl = tbl_proto.cloneNode(false);
+            p.div.appendChild(tbl)
+            
+            // top row
+
+            var tr_top = elm('tr');
+            tbl.appendChild(tr_top);
+            
+            var td_nw = td_proto.cloneNode(false);
+            p.img_nw = mk_img(7,6);
+            td_nw.appendChild(p.img_nw);
+            tr_top.appendChild(td_nw);
+
+            p.td_n = td_proto.cloneNode(false);
+            tr_top.appendChild(p.td_n);
+
+            var td_ne = td_proto.cloneNode(false);
+            p.img_ne = mk_img(9,6);
+            td_ne.appendChild(p.img_ne);
+            tr_top.appendChild(td_ne);
+
+
+            // middle row
+
+            var tr_middle = elm('tr');
+            tbl.appendChild(tr_middle);
+            
+            p.td_w = td_proto.cloneNode(false);
+            tr_middle.appendChild(p.td_w);
+
+            p.td_txt = elm('td'); 
+            p.td_txt.style.paddingRight = '2px'; 
+            p.td_txt.style.paddingBottom = '2px'; 
+            p.td_txt.style.paddingTop = '0';
+            p.td_txt.style.paddingLeft = '0';
+            p.td_txt.style.fontSize = '12px';  
+            p.td_txt.style.fontFamily = 'Arial, Helvetica, sans-serif';
+            tr_middle.appendChild(p.td_txt);
+
+            p.td_e = td_proto.cloneNode(false);
+            tr_middle.appendChild(p.td_e);
+            
+
+            // bottom row
+            
+            var tr_bottom = elm('tr');
+            tbl.appendChild(tr_bottom);
+
+            var td_sw = td_proto.cloneNode(false);
+            p.img_sw = mk_img(7,9);
+            td_sw.appendChild(p.img_sw);
+            tr_bottom.appendChild(td_sw);
+
+            p.td_s = td_proto.cloneNode(false);
+            tr_bottom.appendChild(p.td_s);
+            
+            var td_se = td_proto.cloneNode(false);
+            p.img_se = mk_img(9,9);
+            td_se.appendChild(p.img_se);
+            tr_bottom.appendChild(td_se);
+
+
+            return p;
+        }
+        
+        this.text_node = function() {
+            
+            text_node = elm('span');
+            text_node.className = 'note_text';
+                // show newlines as br's 
+            var text_lines = note.text.split("\n");
+            this.line_length = 0;
+            for (var i in text_lines) {
+                text_node.appendChild( txt(text_lines[i]) );
+                if (i < (text_lines.length-1)) {
+                    text_node.appendChild( elm('br') );
+                }
+            }
+            return text_node;
+        }
+       
+        // adds a little signature to notes by other people 
+        this.author_node = function() {  
+            if ( (!note.author_owner) && this.id) { 
+                // if it's not the photo owner's note,
+                // and if it was retrieved, not a new one we're creating
+                var author = elm('i')
+                // only way to get entities is to use innerHTML, 
+                // apparently. or unescape??
+                author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
+                return author;
+            } else {
+                return elm('span');
+            }
+        }
+        
+        this.make_shadowed_text_div = function() {
+
+            note.author_owner = (note.author == ps_photo_character_id);
+       
+            nstyle = note.author_owner ? note_author_style : note_other_style;
+                 
+            var n = note_proto();
+            
+            n.img_nw.src = nstyle['img_nw'];
+            n.td_n.style.background = nstyle['color'];
+            n.img_ne.src = nstyle['img_ne'];
+            
+            n.td_w.style.background = nstyle['color'];
+            n.td_txt.style.background = nstyle['color'];
+            var text_node = note.text_node();
+            n.td_txt.appendChild(text_node);
+            n.td_txt.appendChild(note.author_node());
+            
+            n.td_e.style.background = 'transparent url(' + nstyle['img_e'] + ')';
+            
+            n.img_sw.src = nstyle['img_sw'];
+            n.td_s.style.background = 'transparent url(' + nstyle['img_s'] + ')';
+            n.img_se.src = nstyle['img_se'];
+
+            
+            note.text_div = n.div;
+            texts_span.appendChild(note.text_div);
+            
+            // for manipulating, when we edit.
+            note.inner_text_td = n.td_txt;
+            note.inner_text_node = text_node; 
+        }
+    
+
+        note.make_shadowed_text_div();  // arghhh side effects.
+        
+        css( note.text_div, {
             'position' : 'absolute',
             'left'     : this.x + 'px',
             'top'      : (this.y + this.h + 5) + 'px',
-            'padding'  : '5px',
+            //'padding'  : '5px',
+            'visibility' : 'hidden'
         } );
  
-         
-        text_node = elm('span');
-        text_node.className = 'note_text';
-        // show newlines as br's 
-        var text_lines = this.text.split("\n");
-        this.line_length = 0;
-        for (var i in text_lines) {
-            // max_length useful for figuring out text div width.
-            if (text_lines[i].length > this.line_length) {
-                this.line_length = text_lines[i].length;
-            }
-            text_node.appendChild( txt(text_lines[i]) );
-            if (i < (text_lines.length-1)) {
-                text_node.appendChild( elm('br') );
-            }
-        }
-        this.text_div.appendChild(text_node);
-        
-        if (this.line_length > 30) {
-            this.text_div.style.width = '250px';
-        }
-       
-        // if the note author is the person who made the note, yellow without signature
-        // alert( 'note.author = ' +this.author + ' ps_nsid = ' + ps_nsid );
-        if (this.author == ps_photo_character_id) {
-           this.text_div.style.background = '#fff9cc';
-        // notes from other people are green with signature
-        } else {
-           this.text_div.style.background = '#ccffb0';
-           if (this.id) { // if it was retrieved, not a new one we're creating
-                var author = elm('i')
-                // only way to get entities is to use innerHTML, apparently. use UNESCAPE!!
-                author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
-                this.text_div.appendChild(author);
-           }
-        }
-        
-        this.text_div.style.visibility = 'hidden';
-
-
-        var note = this;  // to disambiguate "this" inside these next functions.
-
         this.show = function() {
             clearTimeout(notes_hider_timeout);
             note.text_div.style.visibility = 'visible';
@@ -716,12 +874,13 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             }
             
             // swap note text for textarea
-            var kids = note.text_div.childNodes;
+            note.inner_text_td.replaceChild(textarea_span, note.inner_text_node);
+
+            /*var kids = note.text_div.childNodes;
             for (var i = 0; i < kids.length; i++) {
                 if (kids[i].className == 'note_text') {
-                    note.text_div.replaceChild(textarea_span, kids[i]);
                 }
-            }
+            }*/
             
             var button =  elm("span");
             button.href = '#';
@@ -756,7 +915,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             buttons_div.appendChild(txt(' '));
             buttons_div.appendChild(delete_button);
 
-            note.text_div.appendChild(buttons_div);
+            note.inner_text_td.appendChild(buttons_div);
 
         };
 
@@ -948,7 +1107,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         photo_img.addEventListener( "mouseout",  timeout_hide_notes, false );
 
         prep_resizable_notes();
-   }
+    }
    
               
     function notes_retrieve(req, rsp) {
