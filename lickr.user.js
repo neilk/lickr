@@ -1,10 +1,11 @@
 /* 
+                prevIndex = re.lastIndex;
 
 Lickr -- replace Flickr's Flash interface for photos with similar
-         browser-based interface.
+         browser-based interface, plus other enhancements.
          
-version: 0.21   
-$Id: lickr.user.js,v 1.24 2005-04-23 22:06:54 brevity Exp $
+version: 0.22   
+$Id: lickr.user.js,v 1.25 2005-04-24 22:56:05 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -31,7 +32,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 // ==UserScript==
 // @name      Lickr
 // @namespace   http://brevity.org/greasemonkey
-// @description   Interface for Flickr photo pages that does not use Macromedia Flash(tm).
+// @description   non-Flash interface for Flickr photo pages, plus other enhancements.
 // @include     http://www.flickr.com/photos/*
 // @include     http://flickr.com/photos/*
 // ==/UserScript=
@@ -40,17 +41,10 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 // XXX todo
 
 // why does the main photo 'flash' on some note operations? it isn't being reloaded.
-// some closures are not necessary any more.
-// integrate Drag with Notes better.
+// thumbnail notes go to max width, when any text included. why?
 
 // like to have:
-// rounded corners on notes.
-// less cheesy flash removal
-// less cheesy image reloading (?)
-// generic spinners in procs (?)
-// cursor does not seem to update unless moved.
-// move factory functions inside contexts so they need not be fully parsed...
-
+// proper 'star' image for faves... cannot rely on asterisk height x-platform.
 
 (function() {
     
@@ -80,7 +74,6 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     // If flash file is this size, the width of the image cannot be determined
     var ps_w_flash_min = 362 
      
-    
   
     //-------------------------------------------------------------------------
     // utility functions
@@ -121,6 +114,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
      
     function do_req( method, proc_request, url, referer, data ) {
         var req = new XMLHttpRequest();
+        // alert(url);
         req.onreadystatechange = function() { proc_request(req) };
         req.open(method, url );
 
@@ -551,24 +545,24 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
         // TEXTS
             
-        var note_author_style = new Object;
+        var note_own_style = new Object;
         var note_other_style = new Object;
 
 
-        note_author_style.color = '#fff4ad';
+        note_own_style.color = '#fff4ad';
             
-        note_author_style['img_nw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%06%08%06%00%00%00%0F%0E%84v%00%00%00JIDATx%DAcd%80%82%1F%EF%B7i%B2%B2%FC-a%F8%FF%C7%8D%89%E9%9F%0CH%8C%11D%FC%F9%B4-%9C%99%E9%FB%22%20%93%8D%01%090%82t%B0%B3~%BF%80.%01%02L%60%A3%B0H%80%25Av0%E0%00L0%CB%B1%01%00P%F4%15%C6y%09%DA%F8%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_nw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%06%08%06%00%00%00%0F%0E%84v%00%00%00JIDATx%DAcd%80%82%1F%EF%B7i%B2%B2%FC-a%F8%FF%C7%8D%89%E9%9F%0CH%8C%11D%FC%F9%B4-%9C%99%E9%FB%22%20%93%8D%01%090%82t%B0%B3~%BF%80.%01%02L%60%A3%B0H%80%25Av0%E0%00L0%CB%B1%01%00P%F4%15%C6y%09%DA%F8%00%00%00%00IEND%AEB%60%82"
                 
 
-        note_author_style['img_ne'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%06%08%06%00%00%00%11%C7%B4%C5%00%00%00%85IDATx%DAc%F8%F3q%DD%93%AF%AF%D7-%3Aq%60%921%03%03%03%17%10%B3%021%13%1032%C0%C0%FF%2Fk%FF%83%F0%DF%CFk~%1D%DD%DB%9F%0F%14%92%00bn%20f%81)d%82)fbdd57%95%E9)%C8%0ErFR%C8%0CR%08W%04%02%CCLL%2C%91%E1%B6Y%40%A62%10%8B%001%07H%3F%0B%03%1APU%14%D5%85*%FA%0E%C4_%81%F8%17%13%BA%22AAN%5E%A8u%E2%40%0Cb%B3%00%00%97Y%1E%F5%10%EC%B1%AE%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_ne'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%06%08%06%00%00%00%11%C7%B4%C5%00%00%00%85IDATx%DAc%F8%F3q%DD%93%AF%AF%D7-%3Aq%60%921%03%03%03%17%10%B3%021%13%1032%C0%C0%FF%2Fk%FF%83%F0%DF%CFk~%1D%DD%DB%9F%0F%14%92%00bn%20f%81)d%82)fbdd57%95%E9)%C8%0ErFR%C8%0CR%08W%04%02%CCLL%2C%91%E1%B6Y%40%A62%10%8B%001%07H%3F%0B%03%1APU%14%D5%85*%FA%0E%C4_%81%F8%17%13%BA%22AAN%5E%A8u%E2%40%0Cb%B3%00%00%97Y%1E%F5%10%EC%B1%AE%00%00%00%00IEND%AEB%60%82"
 
-        note_author_style['img_se'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%09%08%06%00%00%00%E0%91%06%10%00%00%00%AAIDATx%DAc%FC%FFe%ED%7F%06%24%F0%E6%ED%D7o%A2%F2q%8B%81%CC%1B%40%7C%02D31%A0%81%93g%EE%3D%07R%7F%91%F0%7F%14E%BF%FF%FC%FD%D7%DA%B5%EA*%90%F9%0B%88%BFC%E9%7FL%C8%0AJ%AB%97%1F%3F~%F2%DAk%20%F7%13%10%7F%00%E2o%20%D3X%40n%00Y%012%01%AA%E0%3D%10%BF%00%E2%97%40%FC%19%88%FF0%02%89%19P%BB%7FAM%00)%B8%0B%C5%20%85%DFY%80%C4u%A8%A2%1FP%2B%40%8A%40%8E%7F%03%15%FB%07Rt%12%C9%A4oP%2B%40%F8'%CCw%20%EB%04%40%0C%90%0E%A8%E0o%98%24%143%00%00%E9%A8%5C%02%D0Q%17%08%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_se'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%09%08%06%00%00%00%E0%91%06%10%00%00%00%AAIDATx%DAc%FC%FFe%ED%7F%06%24%F0%E6%ED%D7o%A2%F2q%8B%81%CC%1B%40%7C%02D31%A0%81%93g%EE%3D%07R%7F%91%F0%7F%14E%BF%FF%FC%FD%D7%DA%B5%EA*%90%F9%0B%88%BFC%E9%7FL%C8%0AJ%AB%97%1F%3F~%F2%DAk%20%F7%13%10%7F%00%E2o%20%D3X%40n%00Y%012%01%AA%E0%3D%10%BF%00%E2%97%40%FC%19%88%FF0%02%89%19P%BB%7FAM%00)%B8%0B%C5%20%85%DFY%80%C4u%A8%A2%1FP%2B%40%8A%40%8E%7F%03%15%FB%07Rt%12%C9%A4oP%2B%40%F8'%CCw%20%EB%04%40%0C%90%0E%A8%E0o%98%24%143%00%00%E9%A8%5C%02%D0Q%17%08%00%00%00%00IEND%AEB%60%82"
 
-        note_author_style['img_sw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%09%08%06%00%00%00%FEX6%A3%00%00%00%82IDATx%DAc%FC%F3q%DD%13f%E6%FF%D2%0CX%00%D3%CF_%0C%FB%18p%00%A6%CBW%9FL%FC%F7%FF%FFo%AC%92%16%0Ey%D7O%9Cz%5C%FA%F7%DF%BF%3F%E8%92%CC%40%CC8o%D1%CE%7B%9F%3E%FD%BD%24%24%2C%20%C1%C5%C1%26%C0%C9%C9%CA%0E%92d%84*%E0%04bq%20V%86b%09%20%E6c%86%9A%F0%0F%88A%C6%FE%04%E2oP%FC%99%11*%093%01d%1C%2F%14s1%22%D9%CF%88%A4%88%15D%03%00%C4%93%24%CC%B2%FADq%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_sw'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%07%00%00%00%09%08%06%00%00%00%FEX6%A3%00%00%00%82IDATx%DAc%FC%F3q%DD%13f%E6%FF%D2%0CX%00%D3%CF_%0C%FB%18p%00%A6%CBW%9FL%FC%F7%FF%FFo%AC%92%16%0Ey%D7O%9Cz%5C%FA%F7%DF%BF%3F%E8%92%CC%40%CC8o%D1%CE%7B%9F%3E%FD%BD%24%24%2C%20%C1%C5%C1%26%C0%C9%C9%CA%0E%92d%84*%E0%04bq%20V%86b%09%20%E6c%86%9A%F0%0F%88A%C6%FE%04%E2oP%FC%99%11*%093%01d%1C%2F%14s1%22%D9%CF%88%A4%88%15D%03%00%C4%93%24%CC%B2%FADq%00%00%00%00IEND%AEB%60%82"
 
-        note_author_style['img_e'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%01%08%06%00%00%00%0C%C2%84%7D%00%00%00%1CIDATx%DAc%FC%FFe%ED%7F%064%C0%C8%13%3C%0DH%DD%00%E2%13%40%7C%0B%00%96%A1%07%11U%2B%F8W%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_e'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%09%00%00%00%01%08%06%00%00%00%0C%C2%84%7D%00%00%00%1CIDATx%DAc%FC%FFe%ED%7F%064%C0%C8%13%3C%0DH%DD%00%E2%13%40%7C%0B%00%96%A1%07%11U%2B%F8W%00%00%00%00IEND%AEB%60%82"
 
-        note_author_style['img_s'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%01%00%00%00%09%08%06%00%00%00%F3FF%E4%00%00%00%1EIDATx%DAc%F8%FFe%ED%7F%26%06%20%40%23%40%60%263%90P%05%11%8C%20%E2%2B%00%A7%B6%05e%D8%14%81X%00%00%00%00IEND%AEB%60%82"
+        note_own_style['img_s'] = "data:image/png,%89PNG%0D%0A%1A%0A%00%00%00%0DIHDR%00%00%00%01%00%00%00%09%08%06%00%00%00%F3FF%E4%00%00%00%1EIDATx%DAc%F8%FFe%ED%7F%26%06%20%40%23%40%60%263%90P%05%11%8C%20%E2%2B%00%A7%B6%05e%D8%14%81X%00%00%00%00IEND%AEB%60%82"
 
 
 
@@ -604,7 +598,11 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             return img;
         }
             
-            
+        
+        // ...Oh no, he's using TABLES! OMG!
+        // sorry but the circumlocutions I've seen to do rounded corners in pure css
+        // are pretty sad, and won't work for pngs with alpha channels.
+        // if someone has a better solution, I'll slap it in here.
         function note_proto() {
            
             var p = new Object();
@@ -612,9 +610,15 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             p.div = elm('div');
             p.div.id = 'note';
             p.div.style.width = '250px';
+            p.div.style.position = 'absolute';
            
             var tbl = tbl_proto.cloneNode(false);
-            p.div.appendChild(tbl)
+            
+            // offset contents from inner note rect. also gives the mouse pointer a "bridge" to this
+            // element so the note text won't disappear when going from inner_rect.
+            tbl.style.paddingTop = '8px'; 
+            p.note_area = tbl;
+            p.div.appendChild(tbl);
             
             // top row
 
@@ -678,6 +682,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             return p;
         }
         
+        
         this.text_node = function() {
             
             text_node = elm('span');
@@ -685,35 +690,80 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                 // show newlines as br's 
             var text_lines = note.text.split("\n");
             this.line_length = 0;
+            
             for (var i in text_lines) {
-                text_node.appendChild( txt(text_lines[i]) );
+                markup(text_node, text_lines[i]);
+                
+                // newlines to <br>s
                 if (i < (text_lines.length-1)) {
                     text_node.appendChild( elm('br') );
                 }
             }
+
+
             return text_node;
+        }
+      
+        // strings to text nodes
+        // urls to anchors
+        // flickr photo urls to anchor+img thumbnails
+        const re = new RegExp('\\b(https?://[^\\s>\\]]+)', 'ig'); 
+        const photo_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/[^/\\s]+/(\\d+)'); 
+        
+        function markup(n, str) {
+
+            // aaron's linkify... but how to append if no link detected?
+            var prevIndex = 0; 
+            re.lastIndex = 0;
+            
+            while (match = re.exec(str)) {
+                n.appendChild(txt(str.substring(prevIndex, match.index)));
+                prevIndex = re.lastIndex;
+                
+                var a = elm("a");
+                a.setAttribute("href", match[0]);
+                var url_txt = txt(match[0]);
+                a.appendChild(url_txt);
+                n.appendChild(a);
+           
+                // get thumbnail for photo url in note 
+                if (photo_match = photo_re.exec(match[0])) {
+                    var photo_id = RegExp.$1;
+                    // happens async: may swoop down and replace text in above link later.
+                    function get_thumb(req, rsp) {
+                        var thumbnail = xpath_single_node(rsp, "//size[@label='Thumbnail']")
+                        if (thumbnail != null) {
+                            var img = elm('img')
+                            img.style.width = thumbnail.getAttribute('width');
+                            img.style.height = thumbnail.getAttribute('height')
+                            img.src = thumbnail.getAttribute('source');
+                            a.replaceChild(img, url_txt);
+                        }
+                    }
+                    flickr_api_call( "flickr.photos.getSizes", { 'photo_id' : photo_id }, get_thumb );
+                }
+
+            }
+            n.appendChild(txt(str.substring(prevIndex)));
+            n.normalize(); 
+            
+            
         }
        
         // adds a little signature to notes by other people 
         this.author_node = function() {  
-            if ( (!note.author_owner) && this.id) { 
-                // if it's not the photo owner's note,
-                // and if it was retrieved, not a new one we're creating
-                var author = elm('i')
-                // only way to get entities is to use innerHTML, 
-                // apparently. or unescape??
-                author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
-                return author;
-            } else {
-                return elm('span');
-            }
+            var author = elm('i')
+            // only way to get entities is to use innerHTML, 
+            // apparently. or unescape??
+            author.innerHTML = ' &ndash;&nbsp;' +this.authorname;
+            return author;
         }
         
         this.make_shadowed_text_div = function() {
 
             note.author_owner = (note.author == ps_photo_character_id);
        
-            nstyle = note.author_owner ? note_author_style : note_other_style;
+            nstyle = note.author_owner ? note_own_style : note_other_style;
                  
             var n = note_proto();
             
@@ -725,7 +775,13 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             n.td_txt.style.background = nstyle['color'];
             var text_node = note.text_node();
             n.td_txt.appendChild(text_node);
-            n.td_txt.appendChild(note.author_node());
+
+            // if it's not the photo owner's note,
+            // and if it was retrieved, not a new one we're creating,
+            // add little signature at bottom
+            if ( (!note.author_owner) && note.id) { 
+                n.td_txt.appendChild(note.author_node());
+            }
             
             n.td_e.style.background = 'transparent url(' + nstyle['img_e'] + ')';
             
@@ -735,24 +791,27 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 
             
             note.text_div = n.div;
+            note.note_area = n.note_area;
             texts_span.appendChild(note.text_div);
             
             // for manipulating, when we edit.
             note.inner_text_td = n.td_txt;
-            note.inner_text_node = text_node; 
+            note.inner_text_node = text_node;
+            
+            note.position_text_div();
         }
     
 
-        note.make_shadowed_text_div();  // arghhh side effects.
+        this.position_text_div = function() { 
+            css( note.text_div, {
+                'left'     : note.x + 'px',
+                'top'      : (note.y + note.h) + 'px',
+            } );
+        }
         
-        css( note.text_div, {
-            'position' : 'absolute',
-            'left'     : this.x + 'px',
-            'top'      : (this.y + this.h + 5) + 'px',
-            //'padding'  : '5px',
-            'visibility' : 'hidden'
-        } );
- 
+        note.make_shadowed_text_div();  
+        note.text_div.style.visibility = 'hidden';
+        
         this.show = function() {
             clearTimeout(notes_hider_timeout);
             note.text_div.style.visibility = 'visible';
@@ -764,10 +823,19 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             note.highlight_rect_div.style.visibility = 'hidden';
         };
 
-
+        
         this.inner_rect_div.addEventListener( "mouseover", this.show, false );
         this.inner_rect_div.addEventListener( "mouseout", this.hide, false );
-
+        
+        // text_div is not normally visible
+        // but when it is, one should be able to mouseover and not lose the text
+        this.note_area.addEventListener( "mouseover", this.show, false );
+        this.note_area.addEventListener( "mouseout", this.hide, false );
+        // sometimes when leaving a note, you also leave the photo img, too quickly for Mozilla to catch that event.
+        // also, sometimes the notes hang over the edge
+        this.inner_rect_div.addEventListener( "mouseout", timeout_hide_notes, false );
+        this.note_area.addEventListener( "mouseout",  timeout_hide_notes, false );
+        
         
         this.save = function() {
             args = {    'note_x'    : note.x,
@@ -830,11 +898,8 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             note.h = parseInt(note.rect_div.style.height);
 
             // and move the note div back.
-            css( note.text_div, {
-                'left'       : note.x + 'px',
-                'top'        : (note.y + note.h + 5) + 'px',
-                'visibility' : 'visible'
-            } );
+            note.position_text_div();
+            note.text_div.style.visibility = 'visible';
 
             // begin listening for cursor changes again
             note.setResizeCursors();
@@ -846,7 +911,11 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             // remove all listeners. 
             for (var i in Notes) {
                 n = Notes[i];
+                n.note_area.removeEventListener( "mouseout", n.hide, false );
+                n.note_area.removeEventListener( "mouseover", n.show, false );
+                n.note_area.removeEventListener("mouseout",  timeout_hide_notes, false ); 
                 n.inner_rect_div.removeEventListener( "mouseout", n.hide, false );
+                n.inner_rect_div.removeEventListener( "mouseout", timeout_hide_notes, false );
                 n.inner_rect_div.removeEventListener( "mouseover", n.show, false );
                 n.inner_rect_div.removeEventListener( "mousedown", n.edit, false );
             }
@@ -869,18 +938,14 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             // if there is one.
             textarea_span = elm('span');
             textarea_span.appendChild( note.textarea );
-            if (note.author != ps_photo_character_id) {
+            if (!note.author_owner) {
                 textarea_span.appendChild(elm('br'));
             }
             
             // swap note text for textarea
             note.inner_text_td.replaceChild(textarea_span, note.inner_text_node);
 
-            /*var kids = note.text_div.childNodes;
-            for (var i = 0; i < kids.length; i++) {
-                if (kids[i].className == 'note_text') {
-                }
-            }*/
+           
             
             var button =  elm("span");
             button.href = '#';
@@ -1098,6 +1163,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         notes_span.id = 'notes';
         texts_span = elm('span');
         texts_span.id = 'texts';        
+        texts_span.style.zIndex = 500; // bloody absolutely positioned next and prev links in right nav
 
         photo_div.insertBefore(notes_span,note_insert_point);
         photo_div.insertBefore(texts_span,note_insert_point);
@@ -1251,7 +1317,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         fave_div.id = 'fave_star';
         css( fave_div, {
             'cssFloat'   : 'right',
-            'color'      : '#ff00ff',
+            'color'      : '#ff0084',
             'fontSize'   : '0.8em',
             'textAlign'  : 'center',
             'position'   : 'relative',
