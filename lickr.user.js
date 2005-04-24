@@ -1,11 +1,10 @@
 /* 
-                prevIndex = re.lastIndex;
 
 Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
 version: 0.22   
-$Id: lickr.user.js,v 1.25 2005-04-24 22:56:05 brevity Exp $
+$Id: lickr.user.js,v 1.26 2005-04-24 23:23:44 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
