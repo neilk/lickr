@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
 version: 0.22   
-$Id: lickr.user.js,v 1.26 2005-04-24 23:23:44 brevity Exp $
+$Id: lickr.user.js,v 1.27 2005-04-24 23:30:57 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -34,7 +34,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
 // @description   non-Flash interface for Flickr photo pages, plus other enhancements.
 // @include     http://www.flickr.com/photos/*
 // @include     http://flickr.com/photos/*
-// ==/UserScript=
+// ==/UserScript==
 
 
 // XXX todo
