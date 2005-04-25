@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
 version: 0.22   
-$Id: lickr.user.js,v 1.27 2005-04-24 23:30:57 brevity Exp $
+$Id: lickr.user.js,v 1.28 2005-04-25 07:43:10 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -707,8 +707,11 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         // urls to anchors
         // flickr photo urls to anchor+img thumbnails
         const re = new RegExp('\\b(https?://[^\\s>\\]]+)', 'ig'); 
+        const tag_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/tags/([^/\\s]+)'); 
         const photo_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/[^/\\s]+/(\\d+)'); 
-        
+        const people_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/people/'); 
+        const icon_name_re = /<h1>\s*(<img [^>]+>)\s*&nbsp;\s*([^<]+?)\s*<span/;
+        const align_re =  /align\s*=\s*\S+/; 
         function markup(n, str) {
 
             // aaron's linkify... but how to append if no link detected?
@@ -718,15 +721,33 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             while (match = re.exec(str)) {
                 n.appendChild(txt(str.substring(prevIndex, match.index)));
                 prevIndex = re.lastIndex;
+                var url = match[0];
                 
                 var a = elm("a");
-                a.setAttribute("href", match[0]);
-                var url_txt = txt(match[0]);
+                a.setAttribute("href", url);
+                var url_txt = txt(url);
                 a.appendChild(url_txt);
                 n.appendChild(a);
-           
+          
+                // the following goes back and replaces the link text, perhaps asynchronously. 
+                
+                // tag urls look like they do on the rest of the page, globe with tagname
+                if (tag_re.exec(url)) {
+                    var tag = RegExp.$1
+                    var tag_icon = elm('img');
+                    tag_icon.src = '/images/icon_globe_over.gif'; // using the dark version because it's easier to see on green or yellow
+                    tag_icon.height = tag_icon.width = '16';
+                    tag_icon.alt = "Click this icon to see all public photos tagged with " + tag;
+                    tag_icon.className = "icon";
+                    tag_icon.style.paddingRight = '0.2em';
+                    var span = elm('span');
+                    span.style.whiteSpace = 'nowrap';
+                    span.appendChild(tag_icon);
+                    span.appendChild( txt(tag) );
+                    a.style.textDecoration = "none";
+                    a.replaceChild(span, url_txt);
                 // get thumbnail for photo url in note 
-                if (photo_match = photo_re.exec(match[0])) {
+                } else if (photo_re.exec(url)) {
                     var photo_id = RegExp.$1;
                     // happens async: may swoop down and replace text in above link later.
                     function get_thumb(req, rsp) {
@@ -740,6 +761,55 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                         }
                     }
                     flickr_api_call( "flickr.photos.getSizes", { 'photo_id' : photo_id }, get_thumb );
+                } else if (people_re.exec(url)) {
+                     // oddly the url of a profile cannot directly give us the id.
+                     // the url path is not the same as the username, and usually isn't the nsid.
+                     // so we have to load the profile page, behind the scenes, and analyze it.
+                     
+                     function get_img(req) {
+                         
+                         // NOT IMPLEMENTED
+                         // var parser = new DOMParser();
+                         //var doc = parser.parseFromString(req.responseText, 'text/html'); 
+                         
+                         // I guess that's why they call it 'Xml' http request. 
+                         // refuses to parse transitional HTML, 
+                         // and won't even allow it from DOMParser?
+                         // oh well, might as well just use regexes.
+                         
+                         // sample target html:
+                         /*
+                            <h1>
+                                <img src="http://photos2.flickr.com/buddyicons/56077162@N00.jpg?1107513335"
+                                 alt="" width="48" height="48" align="left" />	
+		                        &nbsp;hundrednorth <span
+                         */                        
+                         doc = req.responseText;
+                                                     
+                         icon_name_re.exec(doc);
+                         var img_html = RegExp.$1; 
+                         var name_html = RegExp.$2;
+                        
+                         // no alignment or floats on image
+                         img_html = img_html.replace(align_re, '');
+                         
+                         img_html = '<a href="' + url + '">' + img_html + '</a>';
+                         name_html = '<a href="' + url + '">' + name_html + '</a>';
+
+                         // using innerHTML to preserve escaped chars.
+                         var html = img_html + '&nbsp;' + name_html;
+                         
+                         span = elm('span');
+                         span.innerHTML = html;
+                         n.replaceChild(span, a);
+                           
+                     }
+                     var get_img_proc = make_proc('img thumbnail for profile link in notes', get_img)
+                     
+                     // make url relative for js security model
+                     // being injected has its downsides...
+                     rel_url = a.pathname;
+                     do_req( 'GET', get_img_proc, rel_url, null, null)
                 }
 
             }
