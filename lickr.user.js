@@ -3,8 +3,8 @@
 Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
-version: 0.22   
-$Id: lickr.user.js,v 1.28 2005-04-25 07:43:10 brevity Exp $
+version: 0.23   
+$Id: lickr.user.js,v 1.29 2005-04-27 08:11:06 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -123,12 +123,27 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         
         if (data != null) {
             req.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
-            req.send( data );
+            req.send(data);
         } else {
             req.send('');
         }
         
     }
+
+    // space out requests in time, instead of spamming
+    //var request_interval = 300;
+    //var max_request_time = 0;
+    //function queue(fn, arg) {
+    //  var d = new Date()
+    //  var now = d.getMilliseconds;
+    //  if (max_request_time <= now) {
+    //      max_request_time = now
+    //      fn(arg)
+    //  } else {
+    //      max_request_time += request_interval;
+    //      setTimeout( function() { fn(arg); }, max_request_time - now );
+    //  }
+    //}
 
 
     function procException(msg, req) {
@@ -463,7 +478,8 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     }
    
     function remake_notes() {}; // forward declaration (??); 
-   
+  
+    
     
     function Note(n) {
         for (var prop in n) {
@@ -710,8 +726,10 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         const tag_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/tags/([^/\\s]+)'); 
         const photo_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/[^/\\s]+/(\\d+)'); 
         const people_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/people/'); 
-        const icon_name_re = /<h1>\s*(<img [^>]+>)\s*&nbsp;\s*([^<]+?)\s*<span/;
+        const icon_name_re = /<h1>\s*(?:<a[^>]+>)?(<img [^>]+>)(?:<\/a>)?\s*&nbsp;\s*(.+?)\s*[<&]/;
         const align_re =  /align\s*=\s*\S+/; 
+        buddy_icon_dim = 24 // 50% of normal size which is 48x48. flickr scales in the browser, yuck.
+        
         function markup(n, str) {
 
             // aaron's linkify... but how to append if no link detected?
@@ -750,13 +768,18 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                 } else if (photo_re.exec(url)) {
                     var photo_id = RegExp.$1;
                     // happens async: may swoop down and replace text in above link later.
+                    // xxx when the long link is replaced for a smaller thumnail, and there is any 
+                    // other text in the note, the note width doesn't shrink.
+                    // perhaps being completely empty triggers a resize, somehow. perhaps remove all children and
+                    // add them back in.
                     function get_thumb(req, rsp) {
                         var thumbnail = xpath_single_node(rsp, "//size[@label='Thumbnail']")
                         if (thumbnail != null) {
                             var img = elm('img')
-                            img.style.width = thumbnail.getAttribute('width');
-                            img.style.height = thumbnail.getAttribute('height')
                             img.src = thumbnail.getAttribute('source');
+                            if (img.src == null) { return }
+                            img.style.width = thumbnail.getAttribute('width')
+                            img.style.height = thumbnail.getAttribute('height')
                             a.replaceChild(img, url_txt);
                         }
                     }
@@ -779,20 +802,33 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                          
                          // sample target html:
                          /*
+                            <!-- others -->
                             <h1>
                                 <img src="http://photos2.flickr.com/buddyicons/56077162@N00.jpg?1107513335"
                                  alt="" width="48" height="48" align="left" />	
 		                        &nbsp;hundrednorth <span
+			                
+                            <!-- when it's your own -->
+                            <h1>
+			                    <a href="/iconbuilder/"><img src="http://photos3.flickr.com/buddyicons/77716109@N00.jpg?1107159620" alt="edit your buddy icon" width="48" height="48" align="left" /></a>
+			                    &nbsp;brevity <span cla
+
                          */                        
                          doc = req.responseText;
                                                      
-                         icon_name_re.exec(doc);
+                         match = icon_name_re.exec(doc);
+                         if (match.length == 0) return;
+                         
                          var img_html = RegExp.$1; 
                          var name_html = RegExp.$2;
                         
                          // no alignment or floats on image
-                         img_html = img_html.replace(align_re, '');
-                         
+                         img_html = img_html.replace(align_re, 'align="absmiddle"');
+
+                         // flickr scales in the browser, yuck! but it's relatively clean step down from 48px -> 24px.
+                         img_html = img_html.replace(/width=['"]?\d+["']?/, 'width="24"');  
+                         img_html = img_html.replace(/height=['"]?\d+"?/, 'height="24"');
+                          
                          img_html = '<a href="' + url + '">' + img_html + '</a>';
                          name_html = '<a href="' + url + '">' + name_html + '</a>';
 
@@ -881,25 +917,44 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         note.make_shadowed_text_div();  
         note.text_div.style.visibility = 'hidden';
         
-        this.show = function() {
-            clearTimeout(notes_hider_timeout);
+        this.showText = function() {
+            // hide all other note texts (they may be on timeout)
+            for (i in Notes) {
+                if (Notes[i].id != note.id) {
+                    Notes[i].hideText();
+                }
+            }
+                
+            // and show me
+            clearTimeout(note.textTimeout); // this note text
+            clearTimeout(notes_hider_timeout); // all notes rects
             note.text_div.style.visibility = 'visible';
             note.highlight_rect_div.style.visibility = 'visible';
         };
 
-        this.hide = function() {
+        this.hideText = function() {
+            // alert("note hide!")
             note.text_div.style.visibility = 'hidden';
             note.highlight_rect_div.style.visibility = 'hidden';
         };
 
+        // on mouseout, we slightly delay hiding note text. 
+        // things in the note text are now clickable, and the mouse
+        // may wander a little on its way there. Also it may go diagonally across the L formed
+        // by note rectangle and text.
+        this.hideTextTimeout = function() {
+            note.textTimeout = setTimeout( note.hideText, 150 );
+        }
+
         
-        this.inner_rect_div.addEventListener( "mouseover", this.show, false );
-        this.inner_rect_div.addEventListener( "mouseout", this.hide, false );
+        this.inner_rect_div.addEventListener( "mouseover", this.showText, false );
+        this.inner_rect_div.addEventListener( "mouseout", this.hideTextTimeout, false );
         
         // text_div is not normally visible
         // but when it is, one should be able to mouseover and not lose the text
-        this.note_area.addEventListener( "mouseover", this.show, false );
-        this.note_area.addEventListener( "mouseout", this.hide, false );
+        this.note_area.addEventListener( "mouseover", this.showText, false );
+        // see above comment on timeouts.
+        this.note_area.addEventListener( "mouseout", this.hideTextTimeout, false );
         // sometimes when leaving a note, you also leave the photo img, too quickly for Mozilla to catch that event.
         // also, sometimes the notes hang over the edge
         this.inner_rect_div.addEventListener( "mouseout", timeout_hide_notes, false );
@@ -980,12 +1035,12 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             // remove all listeners. 
             for (var i in Notes) {
                 n = Notes[i];
-                n.note_area.removeEventListener( "mouseout", n.hide, false );
-                n.note_area.removeEventListener( "mouseover", n.show, false );
+                n.note_area.removeEventListener( "mouseout", n.hideTextTimeout, false );
+                n.note_area.removeEventListener( "mouseover", n.showText, false );
                 n.note_area.removeEventListener("mouseout",  timeout_hide_notes, false ); 
-                n.inner_rect_div.removeEventListener( "mouseout", n.hide, false );
+                n.inner_rect_div.removeEventListener( "mouseout", n.hideTextTimeout, false );
                 n.inner_rect_div.removeEventListener( "mouseout", timeout_hide_notes, false );
-                n.inner_rect_div.removeEventListener( "mouseover", n.show, false );
+                n.inner_rect_div.removeEventListener( "mouseover", n.showText, false );
                 n.inner_rect_div.removeEventListener( "mousedown", n.edit, false );
             }
             // mouseover / mouseout for photo_img.
@@ -1314,7 +1369,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             author: global_nsid
         } );
         notes_span.style.visibility = 'visible';
-        n.show();
+        n.showText();
         n.edit();
     }    
 
