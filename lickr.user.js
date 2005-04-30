@@ -4,7 +4,7 @@ Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
 version: 0.23   
-$Id: lickr.user.js,v 1.29 2005-04-27 08:11:06 brevity Exp $
+$Id: lickr.user.js,v 1.30 2005-04-30 10:41:20 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -167,7 +167,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                 }
                 
                 // if (alert_response) { alert(req.responseText); }
-                
+                 
                 if( req.status != OK ) {
                     throw new procException( op_name + " request status was '" + req.status + "'", req )
                 }
@@ -725,7 +725,7 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
         const re = new RegExp('\\b(https?://[^\\s>\\]]+)', 'ig'); 
         const tag_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/tags/([^/\\s]+)'); 
         const photo_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/photos/[^/\\s]+/(\\d+)'); 
-        const people_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/people/'); 
+        const personal_re = new RegExp('\\bhttp://(?:www\\.)?flickr\\.com/(people|photos)/([^/\\s]+)/?$')
         const icon_name_re = /<h1>\s*(?:<a[^>]+>)?(<img [^>]+>)(?:<\/a>)?\s*&nbsp;\s*(.+?)\s*[<&]/;
         const align_re =  /align\s*=\s*\S+/; 
         buddy_icon_dim = 24 // 50% of normal size which is 48x48. flickr scales in the browser, yuck.
@@ -784,68 +784,26 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
                         }
                     }
                     flickr_api_call( "flickr.photos.getSizes", { 'photo_id' : photo_id }, get_thumb );
-                } else if (people_re.exec(url)) {
-                     // oddly the url of a profile cannot directly give us the id.
-                     // the url path is not the same as the username, and usually isn't the nsid.
-                     // so we have to load the profile page, behind the scenes, and analyze it.
+                // matches personal photostream or profiles
+                } else if (personal_re.exec(url)) {
                      
-                     function get_img(req) {
-                         
-                         // NOT IMPLEMENTED
-                         // var parser = new DOMParser();
-                         //var doc = parser.parseFromString(req.responseText, 'text/html'); 
-                         
-                         // I guess that's why they call it 'Xml' http request. 
-                         // refuses to parse transitional HTML, 
-                         // and won't even allow it from DOMParser?
-                         // oh well, might as well just use regexes.
-                         
-                         // sample target html:
-                         /*
-                            <!-- others -->
-                            <h1>
-                                <img src="http://photos2.flickr.com/buddyicons/56077162@N00.jpg?1107513335"
-                                 alt="" width="48" height="48" align="left" />	
-		                        &nbsp;hundrednorth <span
-			                
-                            <!-- when it's your own -->
-                            <h1>
-			                    <a href="/iconbuilder/"><img src="http://photos3.flickr.com/buddyicons/77716109@N00.jpg?1107159620" alt="edit your buddy icon" width="48" height="48" align="left" /></a>
-			                    &nbsp;brevity <span cla
-
-                         */                        
-                         doc = req.responseText;
-                                                     
-                         match = icon_name_re.exec(doc);
-                         if (match.length == 0) return;
-                         
-                         var img_html = RegExp.$1; 
-                         var name_html = RegExp.$2;
-                        
-                         // no alignment or floats on image
-                         img_html = img_html.replace(align_re, 'align="absmiddle"');
-
-                         // flickr scales in the browser, yuck! but it's relatively clean step down from 48px -> 24px.
-                         img_html = img_html.replace(/width=['"]?\d+["']?/, 'width="24"');  
-                         img_html = img_html.replace(/height=['"]?\d+"?/, 'height="24"');
+                     function get_user_details(req, rsp) {
+                         //alert(req.responseText);
+                         user = rsp.getElementsByTagName('user').item(0);
+                         id = user.getAttribute('id')
+                         username = user.getElementsByTagName('username').item(0).firstChild.nodeValue;
                           
-                         img_html = '<a href="' + url + '">' + img_html + '</a>';
-                         name_html = '<a href="' + url + '">' + name_html + '</a>';
+                         icon = elm('img');
+                         icon.src = '/buddyicons/' + id + '.jpg';
+                         icon.width = icon.height = 24;  // scaled in browser; really 48. yuck.
+                         icon.align = 'absmiddle'; // what the hell, it's html 4.01 transitional anyway.
+                         icon.style.marginRight = '0.3em';
 
-                         // using innerHTML to preserve escaped chars.
-                         var html = img_html + '&nbsp;' + name_html;
-                         
-                         span = elm('span');
-                         span.innerHTML = html;
-                         n.replaceChild(span, a);
+                         a.replaceChild(icon, url_txt);
+                         a.appendChild( txt(username) );     
                            
                      }
-                     var get_img_proc = make_proc('img thumbnail for profile link in notes', get_img)
-                     
-                     // make url relative for js security model
-                     // being injected has its downsides...
-                     rel_url = a.pathname;
-                     do_req( 'GET', get_img_proc, rel_url, null, null)
+                     flickr_api_call( "flickr.urls.lookupUser", { 'url': url }, get_user_details );
                 }
 
             }
