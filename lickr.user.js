@@ -3,8 +3,8 @@
 Lickr -- replace Flickr's Flash interface for photos with similar
          browser-based interface, plus other enhancements.
          
-version: 0.24 
-$Id: lickr.user.js,v 1.31 2005-04-30 10:42:09 brevity Exp $
+version: 0.25 
+$Id: lickr.user.js,v 1.32 2005-05-08 08:03:29 brevity Exp $
 
 Copyright (c) 2005, Neil Kandalgaonkar
 Released under the BSD license
@@ -1350,13 +1350,6 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     var can_tag = (xpath_single_node(document,"//div[@id='tagadder']") != null);
     
 
-    // --------------------------------------------
-    // add note
-    // appears to use the same perms as adding tags
-    if (can_tag) {
-        toolbar_button( 'Add Note', '#', photo_add_note );
-    }
-    
 
     // ---------------------------------------------
     // sizes
@@ -1369,23 +1362,66 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
     } 
 
 
+
+    // ---------------------------------------------
+    // send to group, add to set.
+
+    if (is_owner) {
+        toolbar_button(
+            'Send to Group',
+            '/photo_sendto_group.gne?id=' + ps_photo_id
+        );
+        toolbar_button(
+            'Add to Set',
+            '/photo_sendto_set.gne?id=' + ps_photo_id
+        );
+    }
+
+
+
+    // --------------------------------------------
+    // add note
+    // appears to use the same perms as adding tags
+    if (can_tag) {
+        toolbar_button( 'Add Note', '#', photo_add_note );
+    }
+    
+
+   
+
     // ---------------------------------------------
     // blog this    
     if (global_nsid) { // if logged in
         toolbar_button( 
             'Blog This', 
-            'http://flickr.com/blog.gne?photo=' + ps_photo_id
+            '/blog.gne?photo=' + ps_photo_id
         );
     }
-   
-
+    
+    
+       
     // ---------------------------------------------
-    // send to group
+    // rotate 
+    // this could also be done with the api now that we have that??
+   
+    function rotation_ok() {
+        // If we make the browser forget the dims, 
+        // we force a clean reflow when once the new src has loaded.
+        photo_img.removeAttribute('height');
+        photo_img.removeAttribute('width');
+
+        // cheesy random argument added so it does not hit cache.  
+        photo_img.src = orig_photo_img_src + '?.rand=' + Math.floor(Math.random()*1000)
+
+        remake_notes();
+    }
+
+    function photo_rotate() {
+        flickr_api_call( "flickr.photos.transform.rotate", { 'photo_id':ps_photo_id, 'degrees':90 }, rotation_ok );
+    }
+
     if (is_owner) {
-        toolbar_button(
-            'Send to Group',
-            'http://flickr.com/photo_sendto_group.gne?id=' + ps_photo_id
-        )
+        toolbar_button('Rotate','#',photo_rotate);
     }
 
 
@@ -1475,35 +1511,8 @@ To uninstall, go to the menu item Tools : Manage User Scripts, select
             draw_unfave();
         }
     }
-
-   
-    // ---------------------------------------------
-    // rotate 
-    // this could also be done with the api now that we have that??
-   
-    function rotation_ok() {
-        // If we make the browser forget the dims, 
-        // we force a clean reflow when once the new src has loaded.
-        photo_img.removeAttribute('height');
-        photo_img.removeAttribute('width');
-
-        // cheesy random argument added so it does not hit cache.  
-        photo_img.src = orig_photo_img_src + '?.rand=' + Math.floor(Math.random()*1000)
-
-        remake_notes();
-    }
-
-    function photo_rotate() {
-        flickr_api_call( "flickr.photos.transform.rotate", { 'photo_id':ps_photo_id, 'degrees':90 }, rotation_ok );
-    }
-
-    if (is_owner) {
-        toolbar_button('Rotate','#',photo_rotate);
-    }
-
-
-    // ---------------------------------------------
-   
+    
+    // -----------------------  
     
     function delete_ok() {
         // currently this appears just to redirect us to the home page. without any
